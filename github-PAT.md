@@ -1,3 +1,0 @@
-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
-
-git clone https://GradeSchool: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@github.com/GradeSchool/saas-blueprint.git   
