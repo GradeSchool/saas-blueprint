@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+source ~/.bashrc 2>/dev/null || true
 
 cd ~/saas-blueprint
 
@@ -13,6 +14,6 @@ echo "Building..."
 npm run build
 
 echo "Restarting server..."
-npx pm2 restart saas-blueprint
+pm2 restart saas-blueprint
 
 echo "Deploy complete!"

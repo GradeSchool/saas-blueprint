@@ -1,0 +1,1 @@
+ sprite exec -s saas-blueprint bash -c "source ~/.bashrc && cd ~/saas-blueprint && git pull && npm install && npm run build && pm2 restart saas-blueprint"

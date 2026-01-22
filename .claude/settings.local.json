@@ -5,7 +5,21 @@
       "Bash(npm install)",
       "Bash(npm install:*)",
       "Bash(npx shadcn@latest add:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "WebFetch(domain:fly.io)",
+      "WebFetch(domain:docs.sprites.dev)",
+      "Bash(Invoke-WebRequest -Uri \"https://sprites-binaries.t3.storage.dev/client/v0.0.1-rc30/sprite-windows-amd64.zip\" -OutFile \"C:\\\\_projects\\\\sprite-windows-amd64.zip\")",
+      "Bash(curl:*)",
+      "Bash(echo:*)",
+      "Bash(\"$USERPROFILE/bin/sprite.exe\" --version)",
+      "Bash(powershell.exe -Command \"[Environment]::SetEnvironmentVariable\\(''Path'', [Environment]::GetEnvironmentVariable\\(''Path'', ''User''\\) + '';'' + \"\"$env:USERPROFILE\\\\bin\"\", ''User''\\)\")",
+      "Bash(powershell.exe -Command \"[Environment]::GetEnvironmentVariable\\(''Path'', ''User''\\)\")",
+      "Bash(tr:*)",
+      "Bash(powershell.exe -Command \"$currentPath = [Environment]::GetEnvironmentVariable\\(''Path'', ''User''\\); $currentPath = $currentPath -replace '';:USERPROFILE\\\\\\\\bin'', ''''; [Environment]::SetEnvironmentVariable\\(''Path'', $currentPath + '';C:\\\\Users\\\\Grady\\\\bin'', ''User''\\)\")",
+      "Bash(powershell.exe -Command '$p = [Environment]::GetEnvironmentVariable\\(\"\"Path\"\", \"\"User\"\"\\); $p = $p -replace \"\";:USERPROFILE\\\\\\\\bin\"\", \"\"\"\"; [Environment]::SetEnvironmentVariable\\(\"\"Path\"\", $p + \"\";C:\\\\Users\\\\Grady\\\\bin\"\", \"\"User\"\"\\)')",
+      "Bash(\"$USERPROFILE/bin/sprite.exe\" --help)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd deploy script for sprite deployment\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

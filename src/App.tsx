@@ -12,7 +12,7 @@ function App() {
         </header>
         <main className="flex-1 p-6">
           <div className="rounded-lg border p-4">
-            <h2 className="text-xl font-semibold mb-2">Welcome to gradysaas.com</h2>
+            <h2 className="text-xl font-semibold mb-2">Welcome to SaaS Blueprint</h2>
             <p className="text-muted-foreground">
               AI-readable knowledge repository for building SaaS products.
             </p>
