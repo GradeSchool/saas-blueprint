@@ -13,6 +13,6 @@ echo "Building..."
 npm run build
 
 echo "Restarting server..."
-pm2 restart saas-blueprint
+npx pm2 restart saas-blueprint
 
 echo "Deploy complete!"
