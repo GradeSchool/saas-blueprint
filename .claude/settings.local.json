@@ -20,7 +20,10 @@
       "Bash(\"$USERPROFILE/bin/sprite.exe\" --help)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd deploy script for sprite deployment\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "WebSearch",
+      "WebFetch(domain:www.convex.dev)",
+      "WebFetch(domain:polar.sh)"
     ]
   }
 }

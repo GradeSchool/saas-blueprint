@@ -2,20 +2,13 @@
 
 ## What This Is
 
-A knowledge repository for sharing code patterns across multiple SaaS apps. Instead of monorepos, npm packages, or submodules, AI agents mediate all code sharing.
-
-## The Concept
-
-- **Recipes** are markdown files containing code patterns, setup instructions, and context
-- AI agents fetch recipes via API and apply them to target apps
-- Each SaaS app lives in its own discrete repo, fully independent
-- No dependencies - code is copied and adapted, not imported
+A knowledge repository for sharing code patterns across multiple SaaS apps. AI agents fetch docs via API and apply them to target apps.
 
 ## Architecture
 
 - **Frontend**: React + Vite (port 5173 in dev)
 - **Backend**: Express server (port 3001)
-- **Data**: JSON and markdown files in `/data` directory
+- **Data**: Markdown files in `/data` directory
 
 ## Running the App
 
@@ -28,18 +21,44 @@ npm run start    # Production mode
 
 ## Key API Endpoints
 
-- `GET /api/recipe` - System overview (the main entry point for agents)
-- `GET /api/files` - List all data files
-- `GET /api/files/{path}` - Get a specific file or directory
-- `POST /api/recipes/{name}` - Create or update a recipe
+- `GET /api/index` - Root index (start here)
+- `GET /api/files` - List all files
+- `GET /api/files/{path}` - Get specific file or directory
+- `POST /api/files/{path}` - Create or update a file (body: `{ "content": "...", "source": "app-name" }`)
 
-## Project Structure
+## Data Structure
 
 ```
-/data           # Runtime data (recipes, config)
-  /recipes      # Recipe markdown files
-/server         # Express backend
-/src            # React frontend
+/data
+  index.md                    # Root index - start here
+  /core                       # Sequential setup (00-08)
+    /00-overview/
+      architecture.md
+      philosophy.md
+    /01-setup/
+      stack.md
+      config.md
+    /02-frontend/
+      viewport-gate.md
+      save-pattern.md
+      state.md
+    /03-convex/
+      schema.md
+      queries.md
+    /04-auth/
+      better-auth.md
+    /05-storage/
+      convex-storage.md
+      limits.md
+    /06-payments/
+      stripe.md
+    /07-analytics/
+      posthog.md
+    /08-hosting/
+      deployment.md
+  /domains                    # App-specific patterns
+    /3d/
+    /2d/
 ```
 
 ## Development Notes
@@ -47,4 +66,3 @@ npm run start    # Production mode
 - tsx --watch handles server hot reload
 - Vite handles frontend HMR
 - Always run `npm run build` to verify changes compile
-- Lint has some pre-existing warnings in UI components (can be ignored)

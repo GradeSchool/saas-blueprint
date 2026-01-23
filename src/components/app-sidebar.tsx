@@ -25,6 +25,74 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onNavigate?: (page: 'config' | 'files') => void
 }
 
+function DirTree({
+  dir,
+  depth,
+  expandedDirs,
+  toggleDir,
+  getChildDirs,
+  getFilesInDir,
+  getIcon,
+  onFileSelect,
+}: {
+  dir: FileEntry
+  depth: number
+  expandedDirs: Set<string>
+  toggleDir: (dir: string) => void
+  getChildDirs: (path: string) => FileEntry[]
+  getFilesInDir: (path: string) => FileEntry[]
+  getIcon: (file: FileEntry) => typeof FileText
+  onFileSelect?: (filepath: string) => void
+}) {
+  const isExpanded = expandedDirs.has(dir.path)
+  const childDirs = getChildDirs(dir.path)
+  const dirFiles = getFilesInDir(dir.path)
+  const paddingLeft = depth * 16
+
+  return (
+    <div>
+      <SidebarMenuItem>
+        <SidebarMenuButton style={{ paddingLeft: `${paddingLeft + 8}px` }} onClick={() => toggleDir(dir.path)}>
+          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <Folder className="h-4 w-4" />
+          <span>{dir.name}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+      {isExpanded && (
+        <>
+          {childDirs.map((childDir) => (
+            <DirTree
+              key={childDir.path}
+              dir={childDir}
+              depth={depth + 1}
+              expandedDirs={expandedDirs}
+              toggleDir={toggleDir}
+              getChildDirs={getChildDirs}
+              getFilesInDir={getFilesInDir}
+              getIcon={getIcon}
+              onFileSelect={onFileSelect}
+            />
+          ))}
+          {dirFiles.map((file) => {
+            const Icon = getIcon(file)
+            return (
+              <SidebarMenuItem key={file.path}>
+                <SidebarMenuButton
+                  style={{ paddingLeft: `${paddingLeft + 24}px` }}
+                  onClick={() => onFileSelect?.(file.path)}
+                >
+                  <Icon />
+                  <span>{file.name}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </>
+      )}
+    </div>
+  )
+}
+
 export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarProps) {
   const [files, setFiles] = useState<FileEntry[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
@@ -53,8 +121,16 @@ export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarPro
   }
 
   // Group files by directory
-  const dirs = files.filter(f => f.type === 'dir')
+  const rootDirs = files.filter(f => f.type === 'dir' && !f.path.includes('/'))
   const rootFiles = files.filter(f => f.type === 'file' && !f.path.includes('/'))
+
+  const getChildDirs = (parentPath: string) => {
+    return files.filter(f =>
+      f.type === 'dir' &&
+      f.path.startsWith(parentPath + '/') &&
+      f.path.split('/').length === parentPath.split('/').length + 1
+    )
+  }
 
   const getFilesInDir = (dir: string) => {
     return files.filter(f => f.type === 'file' && f.path.startsWith(dir + '/') && f.path.split('/').length === dir.split('/').length + 1)
@@ -95,32 +171,19 @@ export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarPro
                 )
               })}
 
-              {dirs.map((dir) => {
-                const isExpanded = expandedDirs.has(dir.path)
-                const dirFiles = getFilesInDir(dir.path)
-                return (
-                  <div key={dir.path}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton onClick={() => toggleDir(dir.path)}>
-                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        <Folder className="h-4 w-4" />
-                        <span>{dir.name}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    {isExpanded && dirFiles.map((file) => {
-                      const Icon = getIcon(file)
-                      return (
-                        <SidebarMenuItem key={file.path}>
-                          <SidebarMenuButton className="pl-8" onClick={() => onFileSelect?.(file.path)}>
-                            <Icon />
-                            <span>{file.name}</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      )
-                    })}
-                  </div>
-                )
-              })}
+              {rootDirs.map((dir) => (
+                <DirTree
+                  key={dir.path}
+                  dir={dir}
+                  depth={0}
+                  expandedDirs={expandedDirs}
+                  toggleDir={toggleDir}
+                  getChildDirs={getChildDirs}
+                  getFilesInDir={getFilesInDir}
+                  getIcon={getIcon}
+                  onFileSelect={onFileSelect}
+                />
+              ))}
 
               {files.length === 0 && (
                 <SidebarMenuItem>
