@@ -3,6 +3,8 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 const API_BASE = "http://localhost:3001"
 
@@ -321,17 +323,77 @@ function App() {
           )}
 
           {currentPage === 'file' && selectedFile && (
-            <pre className="rounded-lg border p-4 bg-muted/50 overflow-auto text-sm">
-              {fileContent}
-            </pre>
+            selectedFile.endsWith('.md') ? (
+              (() => {
+                const content = (fileContent || '').replace(/\r\n/g, '\n')
+                const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n/)
+                const frontmatter = frontmatterMatch ? frontmatterMatch[1] : null
+                const markdown = frontmatterMatch ? content.slice(frontmatterMatch[0].length) : content
+
+                return (
+                  <div className="space-y-4">
+                    {frontmatter && (
+                      <div className="rounded-lg border bg-muted/50 p-4 font-mono text-xs space-y-1">
+                        {frontmatter.split('\n').map((line, i) => {
+                          const [key, ...rest] = line.split(':')
+                          const value = rest.join(':').trim().replace(/^["']|["']$/g, '')
+                          return (
+                            <div key={i}>
+                              <span className="text-muted-foreground">{key}:</span>{' '}
+                              <code className="bg-background px-1.5 py-0.5 rounded">{value}</code>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <div className="rounded-lg border p-6 prose prose-sm max-w-none dark:prose-invert">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+                    </div>
+                  </div>
+                )
+              })()
+            ) : (
+              <pre className="rounded-lg border p-4 bg-muted/50 overflow-auto text-sm">
+                {fileContent}
+              </pre>
+            )
           )}
 
           {currentPage === 'home' && (
-            <div className="rounded-lg border p-4">
-              <h2 className="text-xl font-semibold mb-2">Welcome to SaaS Blueprint</h2>
-              <p className="text-muted-foreground">
-                Select a file from the sidebar to view its contents, or visit Config to manage participating apps.
-              </p>
+            <div className="space-y-6">
+              <div className="rounded-lg border p-4">
+                <h2 className="text-xl font-semibold mb-2">Welcome to SaaS Blueprint</h2>
+                <p className="text-muted-foreground">
+                  Select a file from the sidebar to view its contents, or visit Config to manage participating apps.
+                </p>
+              </div>
+
+              <div className="rounded-lg border p-4 bg-muted/50">
+                <h3 className="font-semibold mb-3">🤖 AI Agent Quick Start</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Connect to this blueprint API to fetch patterns for your SaaS app.
+                </p>
+
+                <div className="space-y-3 text-sm font-mono">
+                  <div>
+                    <div className="text-muted-foreground mb-1"># Start here - get the index</div>
+                    <code className="bg-background px-2 py-1 rounded border">GET /api/index</code>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground mb-1"># List all available files</div>
+                    <code className="bg-background px-2 py-1 rounded border">GET /api/files</code>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground mb-1"># Get a specific file or directory</div>
+                    <code className="bg-background px-2 py-1 rounded border">GET /api/files/core/02-frontend/save-pattern.md</code>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t">
+                  <div className="text-sm font-medium mb-2">Base URL</div>
+                  <code className="text-sm bg-background px-2 py-1 rounded border">http://localhost:3001</code>
+                </div>
+              </div>
             </div>
           )}
         </main>

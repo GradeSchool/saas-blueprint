@@ -1,7 +1,8 @@
 ---
 last_updated: 2026-01-23
-updated_by: saas-blueprint
-change: "Initial viewport gate pattern"
+updated_by: vector-projector
+change: "Added status field and related links"
+status: tested
 ---
 
 # Viewport Gate
@@ -48,3 +49,8 @@ function App() {
 - Users don't do precision graphics work on phones
 - Removes: responsive layouts, touch events, mobile Safari bugs
 - Adds: one simple viewport check
+
+## Related
+
+- [layout.md](layout.md) - App layout (comes after viewport gate)
+- [../01-setup/stack.md](../01-setup/stack.md) - Project scaffolding

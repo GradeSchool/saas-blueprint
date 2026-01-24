@@ -23,7 +23,8 @@
       "Bash(npm run lint)",
       "WebSearch",
       "WebFetch(domain:www.convex.dev)",
-      "WebFetch(domain:polar.sh)"
+      "WebFetch(domain:polar.sh)",
+      "Bash(xxd:*)"
     ]
   }
 }

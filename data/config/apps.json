@@ -1,3 +1,8 @@
 {
-  "apps": {}
+  "apps": {
+    "vector-projector": {
+      "last_checked": "2026-01-23",
+      "description": "First SaaS app - 3D printing tool"
+    }
+  }
 }
