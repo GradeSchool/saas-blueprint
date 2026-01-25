@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-23
+last_updated: 2026-01-25
 updated_by: vector-projector
-change: "Added Convex and Auth to next steps"
+change: "Added .gitignore patterns section with Google OAuth credentials"
 status: tested
 ---
 
@@ -122,7 +122,20 @@ This will:
 - Create `src/lib/utils.ts`
 - Install dependencies (clsx, tailwind-merge, etc.)
 
-### 7. Clean Up Vite Defaults
+### 7. Setup .gitignore Patterns
+
+**Add these patterns to `.gitignore` before committing:**
+
+```gitignore
+# Google OAuth credentials (downloaded from Google Cloud Console)
+client_secret_*.json
+```
+
+Google Cloud Console lets you download OAuth credentials as a JSON file. This file contains your client secret and **must never be committed**.
+
+See [../04-auth/google-oauth-setup.md](../04-auth/google-oauth-setup.md) for the OAuth setup workflow.
+
+### 8. Clean Up Vite Defaults
 
 Delete:
 - `src/App.css`
@@ -130,7 +143,7 @@ Delete:
 
 Update `src/App.tsx` with your app code.
 
-### 8. Verify
+### 9. Verify
 
 ```bash
 npm run build
@@ -185,6 +198,7 @@ Both must pass before proceeding.
 | `@import` not working | Wrong Tailwind version | Tailwind v4 uses `@import "tailwindcss"`, v3 uses `@tailwind` directives |
 | Vite port conflicts | Other services running | Let user handle dev server, never assume port |
 | Non-empty directory | Vite refuses to scaffold | Create in temp folder, copy files over |
+| OAuth credentials leaked | Forgot to gitignore | Add `client_secret_*.json` to `.gitignore` BEFORE committing |
 
 ## Related
 

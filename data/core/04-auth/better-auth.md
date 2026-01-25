@@ -1,30 +1,43 @@
 ---
-last_updated: 2026-01-24
+last_updated: 2026-01-25
 updated_by: vector-projector
-change: "Complete email verification flow with Resend"
-status: tested
+change: "Updated to include Google OAuth support"
+status: in-progress
 ---
 
 # Better Auth
 
-Authentication with Better Auth and Convex. Email/password with email verification.
+Authentication with Better Auth and Convex. Supports email/password and Google OAuth.
 
-## Why No OAuth?
+## Auth Methods
 
-These SaaS apps don't use Google/GitHub OAuth because:
+| Method | Email Verification | Notes |
+|--------|-------------------|-------|
+| Email/Password | Required | 6-digit code via Resend |
+| Google OAuth | Not needed | Google verifies identity |
 
-1. **No separate Google accounts yet** - Each app would need its own Google Cloud project and OAuth credentials. That setup hasn't been done.
-2. **Future consideration** - When/if individual apps need OAuth, it can be added per-app. Better Auth supports it.
-3. **Email/password is sufficient** - For MVP and initial users, email auth works fine.
+## OAuth Strategy
 
-This decision may be revisited as the app portfolio grows.
+**Google OAuth only.** No Apple, Meta, GitHub, or other providers.
+
+- One Google account (`weheartdotart@gmail.com`) for all apps
+- Separate Cloud Console project per app (for branding)
+- See [google-oauth-setup.md](google-oauth-setup.md) for setup guide
 
 ## Prerequisites
 
 - Convex set up and running (see [../03-convex/setup.md](../03-convex/setup.md))
 - `npx convex dev` running in terminal
 - Resend account with verified domain
-- `RESEND_API_KEY` set in Convex dashboard environment variables
+- Google Cloud project with OAuth credentials
+
+**Environment Variables (Convex Dashboard):**
+
+```
+RESEND_API_KEY=re_xxxxxxxxx
+GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxx
+```
 
 ## Reference
 
@@ -46,11 +59,11 @@ npm install better-auth @convex-dev/better-auth resend @react-email/components @
 /convex
   convex.config.ts        # Register Better Auth component
   auth.config.ts          # Auth provider config
-  auth.ts                 # Main auth setup with emailOTP
+  auth.ts                 # Main auth setup with emailOTP + Google
   emails.ts               # Email sending action (use node)
   http.ts                 # Auth HTTP routes
 /src/lib
-  auth-client.ts          # Client-side auth with emailOTP plugin
+  auth-client.ts          # Client-side auth
 ```
 
 ## Step 1: convex.config.ts
@@ -77,65 +90,7 @@ export default {
 
 ## Step 3: emails.ts (Node action)
 
-```typescript
-"use node";
-
-import { v } from "convex/values";
-import { internalAction } from "./_generated/server";
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = "App Name <noreply@yourdomain.com>";
-
-// HTML templates with {{variable}} placeholders
-const TEMPLATES = {
-  verification: {
-    subject: "Verify your email",
-    html: `
-<!DOCTYPE html>
-<html>
-<body style="background-color:#f4f4f5;font-family:sans-serif;">
-  <div style="margin:0 auto;padding:40px 20px;">
-    <div style="background:#fff;border-radius:8px;padding:32px;text-align:center;">
-      <h1>Verify your email</h1>
-      <p>Enter this code:</p>
-      <p style="font-size:32px;font-weight:bold;letter-spacing:4px;">{{code}}</p>
-      <p style="color:#888;">Expires in 10 minutes.</p>
-    </div>
-  </div>
-</body>
-</html>
-    `.trim(),
-  },
-} as const;
-
-export const sendTemplateEmail = internalAction({
-  args: {
-    to: v.string(),
-    template: v.string(),
-    variables: v.record(v.string(), v.string()),
-  },
-  handler: async (_ctx, { to, template, variables }) => {
-    const tmpl = TEMPLATES[template as keyof typeof TEMPLATES];
-    if (!tmpl) throw new Error(`Unknown template: ${template}`);
-
-    let html = tmpl.html;
-    let subject = tmpl.subject;
-    for (const [key, value] of Object.entries(variables)) {
-      html = html.replaceAll(`{{${key}}}`, value);
-      subject = subject.replaceAll(`{{${key}}}`, value);
-    }
-
-    const { error } = await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
-    if (error) throw new Error(`Failed to send: ${error.message}`);
-  },
-});
-```
-
-**Email Template Pattern:**
-- `/emails` folder has React Email components for designing/previewing
-- Convex action has HTML as string with `{{variable}}` placeholders
-- To update: render React Email locally, copy HTML to Convex
+See [emails.md](emails.md) for full implementation.
 
 ## Step 4: auth.ts
 
@@ -160,6 +115,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+    },
+    socialProviders: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      },
     },
     plugins: [
       convex({ authConfig }),
@@ -227,48 +188,53 @@ import { authClient } from './lib/auth-client'
 </ConvexBetterAuthProvider>
 ```
 
-## Frontend Auth Flow
+## Client Usage
 
-### Header Buttons
-
-- **Signed out:** Show "Sign Up" and "Sign In" buttons
-- **Signed in:** Show "User" button
-
-### Sign Up Flow (with verification)
-
-1. User enters email/password/name → submits
-2. Account created, verification email sent
-3. Modal shows code input
-4. User enters 6-digit code → verified → logged in
-
-### Sign In Flow
-
-1. User enters email/password → submits
-2. If valid → logged in, modal closes
-3. If invalid → show error
-
-### AuthModal Pattern
+### Check Auth State
 
 ```tsx
-type Step = 'form' | 'verify'
+import { useConvexAuth } from 'convex/react'
 
-export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
-  const [step, setStep] = useState<Step>('form')
-  
-  // On signup success:
-  setStep('verify')
-  
-  // Verify code:
-  await authClient.emailOtp.verifyEmail({ email, otp: code })
-  
-  // Resend code:
-  await authClient.emailOtp.sendVerificationOtp({ email, type: 'email-verification' })
-}
+const { isLoading, isAuthenticated } = useConvexAuth()
 ```
 
-## Sign Out
+### Sign Up (Email/Password)
 
-Add to UserPage:
+```typescript
+const result = await authClient.signUp.email({
+  email: 'user@example.com',
+  password: 'password123',
+  name: 'User Name',
+})
+// Then verify with OTP
+```
+
+### Sign In (Email/Password)
+
+```typescript
+const result = await authClient.signIn.email({
+  email: 'user@example.com',
+  password: 'password123',
+})
+```
+
+### Sign In (Google OAuth)
+
+```typescript
+await authClient.signIn.social({ provider: "google" })
+// Redirects to Google, then back to app
+```
+
+### Verify Email OTP
+
+```typescript
+const result = await authClient.emailOtp.verifyEmail({
+  email: 'user@example.com',
+  otp: '123456',
+})
+```
+
+### Sign Out
 
 ```typescript
 await authClient.signOut()
@@ -282,22 +248,16 @@ await authClient.signOut()
 | `DataModel is a type` error | Use `import type { DataModel }` |
 | `process is not defined` | Hardcode siteUrl or use Convex env vars |
 | Modal closes without error | Better Auth returns `{ data, error }` - check `result.error` |
-| React Email won't render in Convex | Use HTML string templates in Convex, React Email for design only |
-
-## Environment Variables (Convex Dashboard)
-
-```
-RESEND_API_KEY=re_xxxxxxxxx
-```
+| Google OAuth redirect error | Check redirect URI in Cloud Console matches exactly |
 
 ## Next Steps
 
-- [../02-frontend/modals.md](../02-frontend/modals.md) - Auth modal pattern
-- Add password reset flow (optional)
-- Add OAuth providers (optional, per-app)
+1. [google-oauth-setup.md](google-oauth-setup.md) - Set up Google Cloud project
+2. [emails.md](emails.md) - Email system
+3. [signup-signin-sessions-flow.md](signup-signin-sessions-flow.md) - Full flow guide
+4. [../02-frontend/single-session.md](../02-frontend/single-session.md) - Session enforcement
 
 ## Related
 
 - [../03-convex/setup.md](../03-convex/setup.md) - Convex setup (do first)
 - [../02-frontend/modals.md](../02-frontend/modals.md) - Modal patterns
-- [emails.md](emails.md) - Email system details

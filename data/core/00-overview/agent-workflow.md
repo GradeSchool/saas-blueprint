@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-23
+last_updated: 2026-01-25
 updated_by: vector-projector
-change: "Added temp file trick for API posts"
+change: "Updated port convention: apps on 5173, blueprint on 4001"
 status: verified
 ---
 
@@ -135,12 +135,27 @@ Apps must be registered before using `/api/apps/{name}/checked`.
 
 4. **Update blueprint before verification.** This creates technical debt for every future agent.
 
+## Port Convention
+
+| Service | Port | Notes |
+|---------|------|-------|
+| Blueprint frontend | 4001 | Always runs here, won't conflict |
+| SaaS apps (Vite) | 5173 | Default Vite port, required for Google OAuth |
+| Blueprint API | 3001 | API endpoints |
+
+> **Before starting development:**
+> 1. Ensure no other SaaS apps are running (they would take port 5173)
+> 2. Start your app - verify it runs on port 5173
+> 3. Google OAuth is configured for port 5173 - wrong port = OAuth failure
+>
+> See [../04-auth/google-oauth-setup.md](../04-auth/google-oauth-setup.md) for details.
+
 ## Gotchas We Have Learned
 
 | Problem | Solution |
 |---------|----------|
 | shadcn init fails | Install Tailwind first, configure aliases in BOTH tsconfig files |
-| Vite port unpredictable | Never assume port 5173, let user handle dev server |
+| OAuth redirect_uri_mismatch | App not on port 5173 - stop other Vite apps, restart yours |
 | App registration fails | App must exist in config/apps.json first |
 | Curl JSON escaping hell | Use temp file trick (write file, `curl -d @file`, delete) |
 
