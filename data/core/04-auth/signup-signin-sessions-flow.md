@@ -1,13 +1,88 @@
 ---
-last_updated: 2026-01-26
+last_updated: 2026-01-27
 updated_by: vector-projector
-change: "Updated with actual tested flow - manual OTP trigger and auto-sign-in after verify"
+change: "Added app users table, admin system, and two-table architecture documentation"
 status: tested
 ---
 
 # Sign Up / Sign In / Sessions Flow
 
 Plain-English guide covering all scenarios. Use this as a testing checklist.
+
+---
+
+## Two-Table Architecture
+
+**Better Auth** manages authentication (credentials, sessions, OAuth). **App tables** store application-specific data.
+
+| Table | Managed By | Purpose |
+|-------|------------|--------|
+| `betterAuth:user` | Better Auth | Email, name, emailVerified, OAuth links |
+| `betterAuth:session` | Better Auth | Auth sessions, tokens, expiry |
+| `users` | App | App-specific data (subscriptions, preferences) |
+| `admins` | App | Admin whitelist (emails) |
+
+**Why two user tables?**
+- Separation of concerns - auth vs app data
+- Future-proofing - can migrate away from Better Auth
+- App data like subscription status, usage quotas, etc.
+
+**Linking:** App `users` table has `authUserId` field that references Better Auth user's `_id`.
+
+---
+
+## App User Creation
+
+**When:** On every sign-in, check if app user exists. Create if not.
+
+**Why this approach:**
+- Single code path for both email and Google OAuth
+- Handles edge cases (user signed up but app user wasn't created)
+- Simple and reliable
+
+**Implementation:** `ensureAppUser` mutation in `convex/users.ts`
+
+```typescript
+// Called after every successful sign-in
+const result = await ensureAppUser()
+// Returns: { userId, email, name, isAdmin }
+```
+
+**For Google OAuth:** App.tsx has a useEffect that calls `ensureAppUser` when user is authenticated but no app user exists (handles the redirect return).
+
+---
+
+## Admin System
+
+**Approach:** Separate `admins` table with whitelisted emails.
+
+**Schema:**
+```typescript
+admins: defineTable({
+  email: v.string(),
+  addedAt: v.number(),
+  note: v.optional(v.string()),
+}).index("by_email", ["email"])
+```
+
+**How it works:**
+1. Manually add email to `admins` table in Convex dashboard
+2. User signs up/in normally (email or Google)
+3. On sign-in, `ensureAppUser` checks if email is in admins table
+4. Returns `isAdmin: true` if found
+5. App routes admin to AdminPage instead of UserPage
+
+**Admin is NOT a special account type.** They have a normal account, but their email is whitelisted.
+
+**Adding an admin:**
+```json
+// In Convex dashboard > Data > admins > Add document
+{
+  "email": "admin@example.com",
+  "addedAt": 1706400000000,
+  "note": "Founder"
+}
+```
 
 ---
 
@@ -22,6 +97,48 @@ Plain-English guide covering all scenarios. Use this as a testing checklist.
 
 ---
 
+## Password Requirements
+
+**All passwords must meet these requirements:**
+
+| Requirement | Rule |
+|-------------|------|
+| Length | At least 12 characters |
+| Uppercase | At least one A-Z |
+| Lowercase | At least one a-z |
+| Number | At least one 0-9 |
+| Special | At least one !@#$%^&*()_+-=[]{}\|;':",./<>? |
+
+**Example valid password:** `MyP@ssw0rd123`
+
+**UI Helper Text:** "12+ chars, uppercase, lowercase, number, special"
+
+**Error Messages:** Show exactly what's missing, e.g., "Missing: uppercase, number"
+
+**Applies to:**
+- Sign up (new password)
+- Password reset (new password)
+
+---
+
+## UI Pattern: Spam Folder Callout
+
+**CRITICAL:** Every modal/screen where an email was sent MUST include:
+
+```
+┌─────────────────────────────────────────────┐
+│  📧 Check your spam folder if you don't    │
+│     see the email in your inbox.            │
+└─────────────────────────────────────────────┘
+```
+
+Applies to:
+- Email verification (after signup)
+- Password reset (after requesting code)
+- Any future email-based flows
+
+---
+
 ## User States
 
 | State | Description |
@@ -30,7 +147,7 @@ Plain-English guide covering all scenarios. Use this as a testing checklist.
 | **Logged out, has account (unverified)** | Signed up with email but never verified. |
 | **Logged out, has account (verified)** | Has completed signup and verification. |
 | **Logged in (user)** | Authenticated, regular user. |
-| **Logged in (admin)** | Authenticated, admin privileges. |
+| **Logged in (admin)** | Authenticated, email in admins table. |
 
 ---
 
@@ -56,17 +173,19 @@ Plain-English guide covering all scenarios. Use this as a testing checklist.
 3. Redirect to Google consent screen
 4. User approves
 5. Redirect back to app
-6. If no account exists → account created automatically
-7. User logged in (email already verified by Google)
-8. Modal closes, header shows "User" button
-9. Session started
+6. If no Better Auth account exists → created automatically
+7. User authenticated (email verified by Google)
+8. App detects authenticated + no app user → ensureAppUser() called
+9. App user created, isAdmin checked
+10. Header shows "User" button
 ```
 
 ### Client Code
 
 ```typescript
 await authClient.signIn.social({ provider: 'google' })
-// That's it! Everything else is automatic.
+// Redirects to Google, then back to app
+// App.tsx useEffect handles ensureAppUser on return
 ```
 
 ### Error Cases
@@ -98,6 +217,7 @@ If user tries Google OAuth but already has a password account with that email:
 Unlike Google OAuth, email/password signup requires **manual triggering** of:
 1. Sending the verification OTP
 2. Signing in after verification
+3. Creating app user after sign-in
 
 See [better-auth.md](better-auth.md#-critical-two-verification-systems) for technical details.
 
@@ -106,16 +226,19 @@ See [better-auth.md](better-auth.md#-critical-two-verification-systems) for tech
 ```
 1. User clicks "Sign Up"
 2. Modal opens with: Name, Email, Password fields + Google button
+   └─ Password helper shows: "12+ chars, uppercase, lowercase, number, special"
 3. User fills form, clicks "Create Account"
-4. CLIENT: signUp.email() called → user created in database
-5. CLIENT: emailOtp.sendVerificationOtp() called → OTP sent
-6. Modal switches to verification view
-7. User checks email, finds 6-digit code
-8. User enters code in modal
-9. CLIENT: emailOtp.verifyEmail() called → email marked verified
-10. CLIENT: signIn.email() called → user logged in
-11. Modal closes, header shows "User" button
-12. Session started
+4. CLIENT: Validate password meets requirements (client-side first)
+5. CLIENT: signUp.email() called → Better Auth user created
+6. CLIENT: emailOtp.sendVerificationOtp() called → OTP sent
+7. Modal switches to verification view
+   └─ Shows: "Check your spam folder" callout
+8. User checks email, finds 6-digit code
+9. User enters code in modal
+10. CLIENT: emailOtp.verifyEmail() called → email marked verified
+11. CLIENT: signIn.email() called → user authenticated
+12. CLIENT: ensureAppUser() called → app user created, isAdmin checked
+13. Modal closes, header shows "User" button
 ```
 
 ### Client Code (Simplified)
@@ -140,16 +263,20 @@ if (verify.error) return handleError(verify.error)
 const signin = await authClient.signIn.email({ email, password })
 if (signin.error) return handleError(signin.error)
 
-// User is now signed in!
+// Step 5: Create app user
+await ensureAppUser()
+
+// User is now signed in with app user created!
 ```
 
 ### Error Cases
 
 | Scenario | Error Message | Behavior |
 |----------|---------------|----------|
-| Email already exists | "User already exists" | Stay on form, show error |
-| Password too short | "Password must be at least 8 characters" | Stay on form, show error |
-| Invalid email format | "Please enter a valid email" | Stay on form, show error |
+| Email already exists | "An account with this email already exists" | Show on email field |
+| Password missing requirements | "Missing: uppercase, number" (example) | Show on password field |
+| Name empty (signup) | "Name is required" | Show on name field |
+| Invalid email format | "Please enter a valid email" | Show on email field |
 | Verification code wrong | "Invalid code" | Stay on verify view, clear code input |
 | Verification code expired | "Code expired" | Show resend button |
 | Email send fails | "Failed to send verification code" | Show retry option |
@@ -162,12 +289,12 @@ if (signin.error) return handleError(signin.error)
 
 ```
 1. User clicks "Sign In"
-2. Modal opens with: Email, Password fields + Google button
+2. Modal opens with: Email, Password fields + Google button + "Forgot password?" link
 3. User fills form, clicks "Sign In"
 4. CLIENT: signIn.email() called
-5. Credentials valid → user logged in
-6. Modal closes, header shows "User" button
-7. Session started
+5. Credentials valid → user authenticated
+6. CLIENT: ensureAppUser() called → app user exists or created, isAdmin checked
+7. Modal closes, header shows "User" button
 ```
 
 ### Client Code
@@ -175,6 +302,8 @@ if (signin.error) return handleError(signin.error)
 ```typescript
 const result = await authClient.signIn.email({ email, password })
 if (result.error) return handleError(result.error)
+
+await ensureAppUser()
 // User is signed in
 ```
 
@@ -182,28 +311,88 @@ if (result.error) return handleError(result.error)
 
 | Scenario | Error Message | Behavior |
 |----------|---------------|----------|
-| No account with this email | "User not found" | Stay on form, show error |
-| Wrong password | "Invalid password" | Stay on form, show error |
-| Account unverified | "Email not verified" | Could prompt re-verification |
+| No account with this email | "No account found with this email" | Stay on form, show error |
+| Wrong password | "Invalid email or password" | Stay on form, show error |
+| Account unverified | "Please verify your email first" | Could prompt re-verification |
 | Too many attempts | "Too many attempts" | Disable form temporarily |
+
+---
+
+## Admin Sign In Flow
+
+**Same as regular sign-in, but with admin routing.**
+
+```
+1. Admin signs in (email/password or Google)
+2. ensureAppUser() checks admins table
+3. Returns isAdmin: true
+4. App stores isAdmin in appUser state
+5. When admin clicks "User" button → AdminPage shown (not UserPage)
+```
+
+**AdminPage features:**
+- Purple "Logged in as Admin" banner at top
+- Admin-specific functionality (TBD)
+- Same sign-out flow as regular users
 
 ---
 
 ## Sign Out Flow
 
+**Important:** Navigate away BEFORE calling signOut to avoid UI flicker.
+
 ```
-1. User is on User page
-2. User clicks "Sign Out"
-3. CLIENT: signOut() called
+1. User clicks "Sign Out" on User/Admin page
+2. CLIENT: Navigate to main page immediately (onSignOut callback)
+3. CLIENT: authClient.signOut() called
 4. Session cleared
-5. Redirect to main page
-6. Header shows "Sign Up" + "Sign In" buttons
+5. Header shows "Sign Up" + "Sign In" buttons
 ```
 
 ### Client Code
 
 ```typescript
-await authClient.signOut()
+const handleSignOut = async () => {
+  onSignOut() // Navigate away first to avoid flicker
+  await authClient.signOut()
+}
+```
+
+---
+
+## Password Reset Flow (Email/Password)
+
+### Security Principle
+
+**Never reveal whether an account exists.** This prevents attackers from enumerating valid emails.
+
+The response is always the same regardless of account state:
+> "If an account with a password exists for this email, we've sent a reset code."
+
+### Account States When Reset Requested
+
+| Account State | What Actually Happens | User Sees |
+|--------------|----------------------|----------|
+| No account exists | Do nothing (no email sent) | Same message |
+| Google-only account (no password) | Do nothing (no email sent) | Same message |
+| Email/password account | Send reset OTP | Same message |
+
+User only knows if they receive an email or not.
+
+### Happy Path
+
+```
+1. User on sign-in modal
+2. User enters email address
+3. User clicks "Forgot password?" link
+4. CLIENT: Send reset OTP (silently handle errors)
+5. Modal switches to reset view (same message regardless)
+   └─ Shows: "Check your spam folder" callout
+   └─ Shows: Password requirements helper text
+6. User enters 6-digit code + new password (must meet requirements)
+7. CLIENT: Verify OTP and update password
+8. Password updated → show success
+9. User can now sign in with new password
 ```
 
 ---
@@ -218,15 +407,6 @@ await authClient.signOut()
 5. New code sent, old code invalidated
 ```
 
-### Client Code
-
-```typescript
-const result = await authClient.emailOtp.sendVerificationOtp({
-  email,
-  type: 'email-verification',
-})
-```
-
 ---
 
 ## Session Enforcement (Planned)
@@ -238,51 +418,6 @@ const result = await authClient.emailOtp.sendVerificationOtp({
 - **No exceptions** - admins follow the same rules
 
 Keeps state management simple and robust.
-
-### Single Session per User (Cross-Device)
-
-```
-1. User logs in on Device A → gets sessionId "abc"
-2. User logs in on Device B → gets sessionId "xyz"
-3. Device A's session "abc" is now invalid
-4. Device A checks session → invalid → kicked out
-5. Device A shows toast: "You signed in on another device"
-6. Device A redirects to logged-out state
-```
-
-### Duplicate Tab Detection (Same Browser)
-
-```
-1. User has app open in Tab A
-2. User opens app in Tab B
-3. Tab B detects Tab A exists (BroadcastChannel)
-4. Tab B shows: "You already have this app open in another tab"
-5. Tab B is disabled (can't use app)
-```
-
----
-
-## Password Reset Flow (Planned)
-
-### Happy Path
-
-```
-1. User clicks "Forgot Password" (on sign in modal)
-2. Enter email, click "Send Reset Link"
-3. If account exists, email sent with reset link
-4. User clicks link in email
-5. User enters new password
-6. Password updated → user can sign in
-```
-
-### Security: Don't Reveal Account Existence
-
-| Scenario | Message Shown | Actual Behavior |
-|----------|---------------|------------------|
-| Account exists | "Check your email" | Send reset email |
-| Account doesn't exist | "Check your email" | Send nothing |
-
-Both cases show same message to prevent account enumeration.
 
 ---
 
@@ -296,7 +431,8 @@ See [testing.md](testing.md) for detailed testing patterns.
 - [x] Click Sign In → Continue with Google → account created
 - [x] No verification email needed
 - [x] User logged in immediately
-- [x] Session created
+- [x] App user created in `users` table
+- [x] isAdmin checked against `admins` table
 
 ### Sign Up (Email/Password)
 
@@ -304,51 +440,58 @@ See [testing.md](testing.md) for detailed testing patterns.
 - [x] Verification email received (6-digit OTP)
 - [x] Correct code verifies account
 - [x] After verification, user is logged in automatically
-- [x] Session created
-- [ ] Wrong code shows error
-- [ ] Expired code shows error + resend option
-- [ ] Duplicate email blocked
-- [ ] Weak password blocked
+- [x] App user created in `users` table
+- [x] Password requirements shown as helper text
+- [x] Missing requirements shown as specific error
+- [x] Duplicate email blocked with field-level error
+- [x] Spam folder callout visible
 
 ### Sign In (Email/Password)
 
-- [ ] Existing verified user can sign in
+- [x] Existing verified user can sign in
+- [x] App user exists or is created
+- [x] isAdmin checked on sign-in
 - [ ] Wrong password shows error
 - [ ] Non-existent email shows error
-- [ ] Session created
+
+### Admin Sign In
+
+- [x] Add email to `admins` table manually
+- [x] Sign in with that email
+- [x] Click "User" button → see AdminPage (not UserPage)
+- [x] "Logged in as Admin" banner visible
+- [x] Sign out works without flicker
+
+### Password Reset
+
+- [x] "Forgot password?" shows helpful text when email empty
+- [x] "Forgot password?" link enabled when email filled
+- [x] Clicking link shows reset modal with vague message
+- [x] Password requirements shown on new password field
+- [x] Reset button disabled until password meets requirements
+- [ ] Valid code + new password resets successfully
+- [ ] Invalid code shows error
+- [x] Spam folder callout visible
 
 ### Sign Out
 
-- [ ] Sign out clears session
-- [ ] Header updates to logged-out state
-- [ ] Can sign back in
-
-### Session Enforcement (Not Implemented)
-
-- [ ] Login on device B kicks device A
-- [ ] Kicked user sees toast message
-- [ ] Duplicate tab shows warning
-- [ ] Page refresh doesn't kick user (grace period)
-
-### Password Reset (Not Implemented)
-
-- [ ] Reset email sent for existing account
-- [ ] Same message shown for non-existent account
-- [ ] Reset link works
-- [ ] New password can be used to sign in
+- [x] Sign out navigates away first (no flicker)
+- [x] Header updates to logged-out state
+- [x] Can sign back in
 
 ---
 
-## Edge Cases
+## File Reference
 
-| Scenario | Expected Behavior |
-|----------|-------------------|
-| User closes browser mid-verification | Can resume by clicking Sign Up again with same email (will say "User already exists") - need to handle this better |
-| User signs up with email, later tries Google with same email | "Account exists. Sign in with password." |
-| User signs up with Google, later tries password sign in | "This account uses Google sign in" |
-| Network error during sign up | Show error, allow retry |
-| Network error during verification | Show error, allow retry |
-| User rapidly clicks submit | Disable button during loading, prevent double-submit |
+| File | Purpose |
+|------|--------|
+| `convex/schema.ts` | Defines `users` and `admins` tables |
+| `convex/users.ts` | `ensureAppUser` mutation, `getCurrentAppUser` query |
+| `convex/auth.ts` | Better Auth configuration |
+| `src/components/modals/AuthModal.tsx` | Sign up/in forms, calls ensureAppUser |
+| `src/App.tsx` | Routes to AdminPage or UserPage based on isAdmin |
+| `src/components/AdminPage.tsx` | Admin-only page |
+| `src/components/UserPage.tsx` | Regular user page |
 
 ---
 
@@ -359,4 +502,3 @@ See [testing.md](testing.md) for detailed testing patterns.
 - [testing.md](testing.md) - Testing patterns for solo devs
 - [google-oauth-setup.md](google-oauth-setup.md) - Google OAuth setup
 - [../02-frontend/single-session.md](../02-frontend/single-session.md) - Session enforcement
-- [../02-frontend/modals.md](../02-frontend/modals.md) - Modal patterns
