@@ -1,13 +1,189 @@
 ---
-last_updated: 2026-01-24
+last_updated: 2026-01-26
 updated_by: vector-projector
-change: "Added Vercel Pro + BotID and Resend free tier strategy"
+change: "Added logo display requirement - needs verified domain"
 status: planned
 ---
 
 # Critical Notes
 
 Items that need implementation before production.
+
+---
+
+## Custom Domain for OAuth Branding
+
+**Status:** TODO - Required for production
+
+### The Problem
+
+When users sign in with Google OAuth, they see an ugly, unprofessional consent screen:
+
+```
+"Sign in to amiable-yak-159.convex.site"
+"Google will allow amiable-yak-159.convex.site to access..."
+```
+
+**AND your app logo won't display.**
+
+This is because Google associates logos with **verified/owned domains**. Since `convex.site` is Convex's domain (not yours), Google can't verify ownership and:
+
+1. Shows the raw Convex URL instead of your app name
+2. **Refuses to display your uploaded logo**
+
+Even if you upload a logo in the OAuth consent screen settings, it won't appear until you use a domain you own.
+
+### What Users Should See
+
+After custom domain setup:
+
+```
+"Sign in to Vector Projector"
+"Google will allow api.vectorprojector.weheart.art to access..."
+[Your app logo displayed]
+```
+
+### Why This Happens
+
+Google OAuth redirects to your **callback URL**. With Convex, that URL is:
+`https://[deployment].convex.site/api/auth/callback/google`
+
+Google shows this domain to users on the consent screen. Google also requires domain ownership verification before displaying app logos—this prevents impersonation.
+
+### The Solution
+
+Convex supports **custom domains for HTTP routes**. Instead of `[deployment].convex.site`, you use your own domain like `api.vectorprojector.weheart.art`.
+
+Once you:
+1. Set up the custom domain in Convex
+2. Verify domain ownership with Google (via Search Console)
+3. Add the domain to OAuth consent screen authorized domains
+
+...Google will display your app name and logo properly.
+
+### Implementation Steps
+
+#### Step 1: Set Up Custom Domain in Convex
+
+1. Go to [Convex Dashboard](https://dashboard.convex.dev) → your project
+2. Settings → Custom Domains (or Hosting)
+3. Add custom domain: `api.vectorprojector.weheart.art`
+4. Follow DNS instructions (add CNAME record pointing to Convex)
+5. Wait for verification
+
+**Official docs:** [Custom Domains & Hosting | Convex](https://docs.convex.dev/production/hosting/custom)
+
+#### Step 2: Add Environment Variable
+
+In Convex Dashboard → Settings → Environment Variables, add:
+
+```
+CUSTOM_AUTH_SITE_URL=https://api.vectorprojector.weheart.art
+```
+
+(No trailing slash)
+
+**Why:** This tells Better Auth to use your custom domain for OAuth callbacks instead of the default `.convex.site` URL.
+
+**Reference:** [Convex Auth Advanced - Custom Domains](https://labs.convex.dev/auth/advanced)
+
+#### Step 3: Verify Domain with Google (Required for Logo)
+
+**This step is required for the logo to display.**
+
+1. Go to [Google Search Console](https://search.google.com/search-console)
+2. Add property: `api.vectorprojector.weheart.art`
+3. Verify using DNS TXT record method:
+   - Add TXT record provided by Google to your DNS
+   - Wait for propagation (can take minutes to hours)
+   - Click Verify in Search Console
+4. Domain is now verified with Google
+
+#### Step 4: Update Google Cloud Console
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
+2. Edit your OAuth client
+3. Update Authorized redirect URIs:
+   - Remove: `https://amiable-yak-159.convex.site/api/auth/callback/google`
+   - Add: `https://api.vectorprojector.weheart.art/api/auth/callback/google`
+4. Update Authorized JavaScript origins:
+   - Add: `https://api.vectorprojector.weheart.art`
+5. Save
+
+#### Step 5: Update OAuth Consent Screen Branding
+
+1. Google Cloud Console → APIs & Services → OAuth consent screen
+2. Edit App:
+   - App name: `Vector Projector`
+   - App logo: Upload your logo
+   - App domain / Homepage: `https://vectorprojector.weheart.art`
+   - Privacy policy: `https://vectorprojector.weheart.art/privacy`
+   - Terms of service: `https://vectorprojector.weheart.art/terms`
+3. **Authorized domains:** Add `vectorprojector.weheart.art` (the domain you verified)
+4. Save
+
+#### Step 6: Publish App and Submit for Verification
+
+If you added a logo, Google requires app verification:
+
+1. OAuth consent screen → Publishing status
+2. Click "Publish App" (moves from Testing to Production)
+3. If verification required, submit verification request
+4. Google reviews (can take days/weeks)
+
+**Note:** Without verification, app stays in "Testing" mode (max 100 users). For production, verification is required anyway.
+
+### Per-App Custom Domains
+
+Each app needs its own custom domain:
+
+| App | Custom Domain | Callback URL |
+|-----|--------------|-------------|
+| Vector Projector | `api.vectorprojector.weheart.art` | `.../api/auth/callback/google` |
+| Tiler Styler | `api.tilerstyler.weheart.art` | `.../api/auth/callback/google` |
+
+### DNS Setup (at your registrar)
+
+Add CNAME record for Convex:
+
+```
+Host: api.vectorprojector
+Type: CNAME
+Value: (provided by Convex dashboard)
+TTL: 3600
+```
+
+Add TXT record for Google verification:
+
+```
+Host: api.vectorprojector
+Type: TXT
+Value: (provided by Google Search Console)
+TTL: 3600
+```
+
+### Verification Checklist
+
+- [ ] Custom domain added in Convex dashboard
+- [ ] DNS CNAME record added (for Convex)
+- [ ] Domain verified in Convex
+- [ ] DNS TXT record added (for Google Search Console)
+- [ ] Domain verified in Google Search Console
+- [ ] `CUSTOM_AUTH_SITE_URL` env var set
+- [ ] Google Console redirect URI updated
+- [ ] Google Console origins updated
+- [ ] Authorized domains includes your domain
+- [ ] OAuth consent screen branding updated (name, logo, links)
+- [ ] App published (out of Testing mode)
+- [ ] Google verification submitted (if logo added)
+- [ ] **TEST:** Logo appears on consent screen
+
+### References
+
+- [Convex Custom Domains](https://docs.convex.dev/production/hosting/custom)
+- [Convex Auth - Custom Domain for OAuth](https://labs.convex.dev/auth/advanced)
+- [Google Search Console](https://search.google.com/search-console) - Domain verification
+- [Google OAuth Verification](https://support.google.com/cloud/answer/9110914)
 
 ---
 
@@ -159,11 +335,22 @@ const FROM_EMAIL = `${APP_NAME} <noreply@weheart.art>`;
 
 ## Production Checklist
 
+### Custom Domain / OAuth Branding
+- [ ] Custom domain set up in Convex (`api.vectorprojector.weheart.art`)
+- [ ] DNS CNAME configured
+- [ ] Domain verified in Google Search Console (required for logo)
+- [ ] `CUSTOM_AUTH_SITE_URL` env var set
+- [ ] Google Console redirect URIs updated to custom domain
+- [ ] Google Console authorized domains includes your domain
+- [ ] OAuth consent screen branding (app name, logo, links)
+- [ ] Google app verification submitted
+- [ ] **Verified:** Logo displays on consent screen
+
 ### Vercel
 - [ ] Create Vercel account (Pro tier)
 - [ ] Enable WAF Bot Protection
 - [ ] Configure BotID on signup/login routes
-- [ ] Set up custom domain
+- [ ] Set up custom domain for frontend
 
 ### Resend
 - [ ] Create Resend account (free tier)
@@ -174,18 +361,21 @@ const FROM_EMAIL = `${APP_NAME} <noreply@weheart.art>`;
 ### Convex
 - [ ] Implement rate limiting
 - [ ] Configure production deployment
+- [ ] Set all env vars for production
 
 ### Per-App
 - [ ] BotID integration on auth routes
 - [ ] Test email verification flow
 - [ ] Test Google OAuth flow
+- [ ] Privacy policy page
+- [ ] Terms of service page
 
 ---
 
 ## Cost Summary
 
 | Service | Tier | Monthly Cost |
-|---------|------|-------------|
+|---------|------|--------------|
 | Vercel | Pro | $20 |
 | Resend | Free | $0 |
 | BotID Deep Analysis | ~1k calls | ~$1 |
