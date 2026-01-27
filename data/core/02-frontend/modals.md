@@ -1,13 +1,13 @@
 ---
-last_updated: 2026-01-24
+last_updated: 2026-01-27
 updated_by: vector-projector
-change: "Updated AuthModal with verification flow"
+change: "Added onboarding modal pattern"
 status: tested
 ---
 
 # Modals
 
-Modal system for user interactions. These apps use many modals.
+Modal system for user interactions.
 
 ## Architecture
 
@@ -15,20 +15,13 @@ Modal system for user interactions. These apps use many modals.
 /src/components
   Modal.tsx              <- Base modal shell (reusable)
   /modals
-    AuthModal.tsx        <- Sign in/up modal with verification
+    AuthModal.tsx        <- Sign in/up with verification
+    OnboardingModal.tsx  <- First-visit welcome modal
     TestModal.tsx        <- Example modal
     ConfirmModal.tsx     <- Confirmation dialogs
-    etc.
 ```
 
 ## Base Modal Component
-
-The base `Modal.tsx` handles:
-- Backdrop with click-to-close
-- Escape key to close
-- Body scroll lock when open
-- Title and close button
-- Children slot for content
 
 ```tsx
 // src/components/Modal.tsx
@@ -60,137 +53,76 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">
             &times;
           </button>
         </div>
-
-        {/* Content */}
-        <div className="p-4">
-          {children}
-        </div>
+        <div className="p-4">{children}</div>
       </div>
     </div>
   )
 }
 ```
 
-## Auth Modal Pattern
+## Onboarding Modal Pattern
 
-Two-step modal: credentials → verification code.
+First-visit welcome modal. Shows once per browser (localStorage).
 
-### Header Integration
+### Why localStorage?
+
+User has no account yet. Can't store "seen" flag in database.
+
+### Implementation
 
 ```tsx
-// App.tsx
-const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | null>(null)
+// App.tsx - State and localStorage check
+const ONBOARDING_KEY = 'vp_onboarding_seen'
+const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
 
-// When signed out, show two buttons:
-<button onClick={() => setAuthModalMode('signup')}>Sign Up</button>
-<button onClick={() => setAuthModalMode('signin')}>Sign In</button>
+useEffect(() => {
+  const seen = localStorage.getItem(ONBOARDING_KEY)
+  if (!seen) setIsOnboardingOpen(true)
+}, [])
 
-// When signed in, show one button:
-<button onClick={() => setCurrentPage('user')}>User</button>
-
-// Modal:
-<AuthModal
-  isOpen={authModalMode !== null}
-  onClose={() => setAuthModalMode(null)}
-  mode={authModalMode ?? 'signin'}
-/>
+const handleOnboardingClose = () => {
+  localStorage.setItem(ONBOARDING_KEY, 'true')
+  setIsOnboardingOpen(false)
+}
 ```
 
-### AuthModal Implementation
-
 ```tsx
-type Step = 'form' | 'verify'
+// OnboardingModal.tsx
+import { useQuery } from 'convex/react'
+import { api } from '@convex/_generated/api'
+import { Modal } from '@/components/Modal'
 
-export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
-  const [step, setStep] = useState<Step>('form')
-  const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  // ... other state
+export function OnboardingModal({ isOpen, onClose, onGoToFaq }) {
+  const appState = useQuery(api.appState.get)
+  const crowdfundingActive = appState?.crowdfundingActive ?? false
 
-  // Reset on open/mode change
-  useEffect(() => {
-    if (isOpen) {
-      setStep('form')
-      setEmail('')
-      setCode('')
-      // ... reset other fields
-    }
-  }, [isOpen, mode])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (mode === 'signup') {
-      const result = await authClient.signUp.email({ email, password, name })
-      if (result.error) {
-        setError(result.error.message)
-        return
-      }
-      setStep('verify') // Switch to verification
-    } else {
-      const result = await authClient.signIn.email({ email, password })
-      if (result.error) {
-        setError(result.error.message)
-        return
-      }
-      onClose()
-    }
-  }
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const result = await authClient.emailOtp.verifyEmail({ email, otp: code })
-    if (result.error) {
-      setError(result.error.message)
-      return
-    }
-    onClose()
-  }
-
-  const handleResend = async () => {
-    await authClient.emailOtp.sendVerificationOtp({ email, type: 'email-verification' })
-  }
-
-  // Render verification step
-  if (step === 'verify') {
-    return (
-      <Modal isOpen={isOpen} onClose={onClose} title="Verify your email">
-        <form onSubmit={handleVerify}>
-          <p>We sent a code to {email}</p>
-          <input value={code} onChange={...} maxLength={6} />
-          <button type="submit">Verify</button>
-          <button type="button" onClick={handleResend}>Resend code</button>
-        </form>
-      </Modal>
-    )
-  }
-
-  // Render signin/signup form
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={mode === 'signin' ? 'Sign In' : 'Sign Up'}>
-      <form onSubmit={handleSubmit}>
-        {mode === 'signup' && <input placeholder="Name" ... />}
-        <input type="email" placeholder="Email" ... />
-        <input type="password" placeholder="Password" ... />
-        <button type="submit">{mode === 'signin' ? 'Sign In' : 'Create Account'}</button>
-      </form>
+    <Modal isOpen={isOpen} onClose={onClose} title="Welcome to App Name">
+      <div className="space-y-4">
+        {crowdfundingActive ? (
+          <>
+            <p>We're currently in <strong>Crowdfunding Early Access</strong>.</p>
+            <p>Backers can unlock full features...</p>
+          </>
+        ) : (
+          <>
+            <p>A tool for [description].</p>
+            <p>Explore the demo, sign up to save your work...</p>
+          </>
+        )}
+        <div className="flex gap-3">
+          <button onClick={() => { onClose(); onGoToFaq(); }}>Learn More</button>
+          <button onClick={onClose}>Just Explore</button>
+        </div>
+      </div>
     </Modal>
   )
 }
@@ -198,66 +130,29 @@ export function AuthModal({ isOpen, onClose, mode }: AuthModalProps) {
 
 ### Key Points
 
-- **Mode passed from parent** - No internal toggle between signin/signup
-- **Two-step signup** - Form → verify code
-- **Error handling** - Better Auth returns `{ data, error }`, not throws
-- **Code input** - 6 digits, centered, large text
-- **Resend option** - Button to request new code
+- **localStorage key**: Use app-specific prefix (e.g., `vp_onboarding_seen`)
+- **Close = seen**: Any close action marks as seen
+- **Crowdfunding toggle**: Content changes based on `app_state.crowdfundingActive`
+- **FAQ navigation**: Modal can trigger page navigation before closing
 
-## Confirm Modal Pattern
+## Auth Modal Pattern
 
-```tsx
-// src/components/modals/ConfirmModal.tsx
-import { Modal } from '../Modal'
-
-interface ConfirmModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
-  title: string
-  message: string
-}
-
-export function ConfirmModal({ isOpen, onClose, onConfirm, title, message }: ConfirmModalProps) {
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title}>
-      <p className="text-gray-600 mb-4">{message}</p>
-      <div className="flex justify-end gap-2">
-        <button onClick={onClose} className="px-4 py-2 border rounded">
-          Cancel
-        </button>
-        <button
-          onClick={() => { onConfirm(); onClose(); }}
-          className="px-4 py-2 bg-sky-500 text-white rounded"
-        >
-          Confirm
-        </button>
-      </div>
-    </Modal>
-  )
-}
-```
-
-## Modal State Pattern
-
-For apps with many modals, consider a modal state object:
+Two-step: credentials → verification code.
 
 ```tsx
-const [modals, setModals] = useState({
-  auth: false,
-  confirm: false,
-  settings: false,
-})
+const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup' | null>(null)
 
-const openModal = (name: keyof typeof modals) =>
-  setModals(m => ({ ...m, [name]: true }))
-
-const closeModal = (name: keyof typeof modals) =>
-  setModals(m => ({ ...m, [name]: false }))
+<AuthModal
+  isOpen={authModalMode !== null}
+  onClose={() => setAuthModalMode(null)}
+  mode={authModalMode ?? 'signin'}
+/>
 ```
+
+See `AuthModal.tsx` for full implementation with OTP verification.
 
 ## Related
 
 - [layout.md](layout.md) - Overall app layout
 - [src-structure.md](src-structure.md) - Directory organization
-- [../04-auth/better-auth.md](../04-auth/better-auth.md) - Auth setup
+- [../03-convex/schema.md](../03-convex/schema.md) - app_state singleton

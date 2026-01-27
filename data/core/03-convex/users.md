@@ -1,164 +1,159 @@
 ---
-last_updated: 2026-01-25
+last_updated: 2026-01-27
 updated_by: vector-projector
-change: "Added decisions: admins separate, managed in Convex dashboard"
-status: draft
+change: "Updated to reflect actual implementation - all features complete"
+status: tested
 ---
 
 # App User Tables
 
 Pattern for managing app-specific user data alongside Better Auth.
 
-## Decisions Made
-
-| Decision | Choice |
-|----------|--------|
-| Separate users and admins tables? | **Yes** - 100% separate |
-| Can someone be both? | **No** - mutually exclusive identities |
-| How are admins created? | **Directly in Convex dashboard** |
-| Different UI for admins? | **Yes** - admins see different page when clicking User button |
-
-## The Two-Table Pattern
-
-Better Auth manages auth identity. Your app manages business data. Keep them separate.
+## Architecture
 
 ```
-┌─────────────────────────────┐      ┌─────────────────────────────┐
-│   betterAuth/user           │      │      app/users              │
-│   (owned by Better Auth)    │      │      (owned by app)         │
-├─────────────────────────────┤      ├─────────────────────────────┤
-│ _id                         │←────→│ authId                      │
-│ email                       │      │ createdAt                   │
-│ name                        │      │ (app-specific fields)       │
-│ emailVerified               │      │                             │
-└─────────────────────────────┘      └─────────────────────────────┘
+┌─────────────────────────┐     ┌─────────────────────────┐
+│   betterAuth:user       │     │      users              │
+│   (Better Auth)         │     │      (App)              │
+├─────────────────────────┤     ├─────────────────────────┤
+│ _id                     │←───→│ authUserId              │
+│ email                   │     │ email                   │
+│ name                    │     │ name                    │
+│ emailVerified           │     │ activeSessionId         │
+│                         │     │ sessionStartedAt        │
+└─────────────────────────┘     └─────────────────────────┘
 
-                                     ┌─────────────────────────────┐
-                                     │      app/admins             │
-                                     │      (100% separate)        │
-                                     ├─────────────────────────────┤
-                                     │ authId                      │
-                                     │ createdAt                   │
-                                     │ (admin-specific fields)     │
-                                     └─────────────────────────────┘
+                                ┌─────────────────────────┐
+                                │      admins             │
+                                │      (Email whitelist)  │
+                                ├─────────────────────────┤
+                                │ email                   │
+                                │ addedAt                 │
+                                │ note                    │
+                                └─────────────────────────┘
 ```
 
-**Why separate admins table?**
-- Security isolation - if users table compromised, admin data is separate
-- No accidental admin/user confusion
-- Different fields/permissions can evolve independently
-- Clear audit trail
-- Admins managed directly in Convex dashboard (no UI needed)
-
-## Admin Creation
-
-Admins are created manually in Convex dashboard:
-
-1. User signs in with Google OAuth (creates Better Auth user)
-2. Admin (you) goes to Convex dashboard → Data → admins table
-3. Insert new document with `authId` matching the Better Auth user's `_id`
-
-No admin-creation UI in the app. Simple, secure, intentional.
-
-## UI Routing
-
-When authenticated user clicks "User" button:
-
-```
-Check: Is authId in admins table?
-  → Yes: Show admin page
-  → No: Show regular user page
-```
-
-Admins can do everything users can do, plus see admin-specific features.
-
-## The "Ensure User Exists" Pattern
-
-**Problem:** When a user authenticates, Better Auth creates their auth record, but we need a corresponding app record.
-
-**Solution:** Check and create on first authenticated action.
-
-```typescript
-// convex/users.ts
-import { mutation } from "./_generated/server";
-import { authComponent } from "./auth";
-
-export const ensureUser = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error("Not authenticated");
-
-    // Check if this is an admin (admins don't get user records)
-    const isAdmin = await ctx.db
-      .query("admins")
-      .withIndex("by_authId", (q) => q.eq("authId", authUser._id))
-      .first();
-    
-    if (isAdmin) return { type: "admin", data: isAdmin };
-
-    // Check if app user exists
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_authId", (q) => q.eq("authId", authUser._id))
-      .first();
-
-    if (existing) return { type: "user", data: existing };
-
-    // Create with defaults
-    const userId = await ctx.db.insert("users", {
-      authId: authUser._id,
-      createdAt: Date.now(),
-    });
-
-    return { type: "user", data: await ctx.db.get(userId) };
-  },
-});
-```
-
-## Schema (Draft)
+## Schema
 
 ```typescript
 // convex/schema.ts
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+users: defineTable({
+  authUserId: v.string(),
+  email: v.string(),
+  name: v.optional(v.string()),
+  createdAt: v.number(),
+  activeSessionId: v.optional(v.string()),
+  sessionStartedAt: v.optional(v.number()),
+})
+  .index("by_authUserId", ["authUserId"])
+  .index("by_email", ["email"]),
 
-export default defineSchema({
-  users: defineTable({
-    authId: v.string(), // Better Auth user._id
-    createdAt: v.number(),
-    // TBD: app-specific fields
-  }).index("by_authId", ["authId"]),
-
-  admins: defineTable({
-    authId: v.string(), // Better Auth user._id
-    createdAt: v.number(),
-    // TBD: admin-specific fields
-  }).index("by_authId", ["authId"]),
-});
+admins: defineTable({
+  email: v.string(),
+  addedAt: v.number(),
+  note: v.optional(v.string()),
+}).index("by_email", ["email"]),
 ```
 
-## Status
+## ensureAppUser Mutation
 
-**Decisions made:**
-- [x] Two separate tables (users, admins)
-- [x] Mutually exclusive identities
-- [x] Admins created via Convex dashboard
-- [x] Different UI for admins vs users
+Called on every sign-in. Creates app user if needed, generates session.
 
-**Not yet implemented:**
-- [ ] Schema definition in codebase
-- [ ] ensureUser mutation
-- [ ] Admin check query
-- [ ] UI routing based on user type
+```typescript
+// convex/users.ts
+export const ensureAppUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const authUser = await authComponent.getAuthUser(ctx)
+    if (!authUser) throw new Error('Not authenticated')
+    
+    const existingUser = await ctx.db.query('users')
+      .withIndex('by_authUserId', q => q.eq('authUserId', authUser._id))
+      .unique()
+    
+    const sessionId = crypto.randomUUID()
+    const now = Date.now()
+    
+    let appUser
+    if (existingUser) {
+      await ctx.db.patch(existingUser._id, {
+        activeSessionId: sessionId,
+        sessionStartedAt: now,
+      })
+      appUser = existingUser
+    } else {
+      const userId = await ctx.db.insert('users', {
+        authUserId: authUser._id,
+        email: authUser.email,
+        name: authUser.name ?? undefined,
+        createdAt: now,
+        activeSessionId: sessionId,
+        sessionStartedAt: now,
+      })
+      appUser = await ctx.db.get(userId)
+    }
+    
+    // Check admin status
+    const adminRecord = await ctx.db.query('admins')
+      .withIndex('by_email', q => q.eq('email', authUser.email))
+      .unique()
+    
+    return {
+      userId: appUser._id,
+      email: appUser.email,
+      name: appUser.name,
+      isAdmin: adminRecord !== null,
+      sessionId,
+    }
+  },
+})
+```
 
-**Blocked by:**
-- Testing email/password sign-up flow
-- Testing sessions strategy
-- General auth flow testing
+## Admin System
+
+**How it works:**
+1. Add email to `admins` table in Convex dashboard
+2. User signs in normally
+3. `ensureAppUser` checks admins table
+4. Returns `isAdmin: true` if email found
+5. App routes to AdminPage instead of UserPage
+
+**Adding an admin (Convex Dashboard):**
+```json
+{
+  "email": "admin@example.com",
+  "addedAt": 1706400000000,
+  "note": "Founder"
+}
+```
+
+## UI Routing
+
+```tsx
+// App.tsx
+{currentPage === 'user' ? (
+  effectiveAppUser?.isAdmin ? (
+    <AdminPage onSignOut={handleSignOut} />
+  ) : (
+    <UserPage onSignOut={handleSignOut} />
+  )
+) : (
+  // Main app content
+)}
+```
+
+## Key Files
+
+| File | Purpose |
+|------|--------|
+| `convex/schema.ts` | Table definitions |
+| `convex/users.ts` | `ensureAppUser`, `validateSession`, `getCurrentAppUser` |
+| `src/App.tsx` | Admin routing logic |
+| `src/components/AdminPage.tsx` | Admin-only page |
+| `src/components/UserPage.tsx` | Regular user page |
 
 ## Related
 
+- [schema.md](schema.md) - Full schema
 - [../04-auth/better-auth.md](../04-auth/better-auth.md) - Auth setup
-- [../04-auth/signup-signin-sessions-flow.md](../04-auth/signup-signin-sessions-flow.md) - Full flow guide
-- [setup.md](setup.md) - Convex setup
+- [../02-frontend/admin-panel.md](../02-frontend/admin-panel.md) - Admin UI

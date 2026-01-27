@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-25
+last_updated: 2026-01-27
 updated_by: vector-projector
-change: "Added .gitignore patterns section with Google OAuth credentials"
+change: "Added React Compiler to stack"
 status: tested
 ---
 
@@ -14,7 +14,8 @@ Project scaffolding for a new SaaS app.
 | Layer | Choice |
 |-------|--------|
 | Build | Vite |
-| UI | React + TypeScript |
+| UI | React 19 + TypeScript |
+| Optimization | React Compiler 1.0 |
 | Styling | Tailwind CSS v4 |
 | Components | shadcn/ui |
 | Backend | Convex |
@@ -49,7 +50,13 @@ npm install
 npm install tailwindcss @tailwindcss/vite
 ```
 
-### 3. Configure Vite
+### 3. Install React Compiler
+
+```bash
+npm install babel-plugin-react-compiler
+```
+
+### 4. Configure Vite
 
 Update `vite.config.ts`:
 
@@ -60,16 +67,24 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react({
+      babel: {
+        plugins: [['babel-plugin-react-compiler', { target: '19' }]],
+      },
+    }),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@convex': path.resolve(__dirname, './convex'),
     },
   },
 })
 ```
 
-### 4. Configure TypeScript Aliases
+### 5. Configure TypeScript Aliases
 
 **CRITICAL: Must update BOTH files.**
 
@@ -85,7 +100,8 @@ Update `tsconfig.json` (root):
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@convex/*": ["./convex/*"]
     }
   }
 }
@@ -96,11 +112,12 @@ Also add to `tsconfig.app.json` compilerOptions:
 ```json
 "baseUrl": ".",
 "paths": {
-  "@/*": ["./src/*"]
+  "@/*": ["./src/*"],
+  "@convex/*": ["./convex/*"]
 }
 ```
 
-### 5. Setup Tailwind CSS
+### 6. Setup Tailwind CSS
 
 Replace `src/index.css` contents:
 
@@ -110,7 +127,7 @@ Replace `src/index.css` contents:
 
 > **Note:** Tailwind v4 uses `@import` syntax, not `@tailwind base/components/utilities`.
 
-### 6. Initialize shadcn
+### 7. Initialize shadcn
 
 ```bash
 npx shadcn@latest init -d
@@ -122,7 +139,7 @@ This will:
 - Create `src/lib/utils.ts`
 - Install dependencies (clsx, tailwind-merge, etc.)
 
-### 7. Setup .gitignore Patterns
+### 8. Setup .gitignore Patterns
 
 **Add these patterns to `.gitignore` before committing:**
 
@@ -135,7 +152,7 @@ Google Cloud Console lets you download OAuth credentials as a JSON file. This fi
 
 See [../04-auth/google-oauth-setup.md](../04-auth/google-oauth-setup.md) for the OAuth setup workflow.
 
-### 8. Clean Up Vite Defaults
+### 9. Clean Up Vite Defaults
 
 Delete:
 - `src/App.css`
@@ -143,7 +160,7 @@ Delete:
 
 Update `src/App.tsx` with your app code.
 
-### 9. Verify
+### 10. Verify
 
 ```bash
 npm run build
@@ -152,6 +169,34 @@ npm run lint
 
 Both must pass before proceeding.
 
+## React Compiler Rules
+
+**React Compiler is mandatory.** It automatically memoizes components at build time.
+
+### Rules to Follow
+
+1. **Never mutate state or props directly**
+   ```typescript
+   // BAD
+   state.items.push(newItem)
+   
+   // GOOD
+   setItems([...items, newItem])
+   ```
+
+2. **Never call hooks conditionally**
+   ```typescript
+   // BAD
+   if (condition) { useEffect(...) }
+   
+   // GOOD - call hook unconditionally, check inside
+   useEffect(() => { if (condition) { ... } }, [condition])
+   ```
+
+3. **Components must be pure** - same props = same output
+
+4. **Don't use `useMemo`/`useCallback`/`React.memo` for performance** - the compiler handles this automatically. Only use if you need referential stability for non-React reasons.
+
 ## Project Structure
 
 ```
@@ -159,6 +204,7 @@ Both must pass before proceeding.
   /components
     /modals      # Modal components
     /ui          # shadcn components
+  /hooks         # Custom React hooks
   /lib           # utilities (utils.ts, auth-client.ts)
   App.tsx
   main.tsx
@@ -193,12 +239,13 @@ Both must pass before proceeding.
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| shadcn init fails | Tailwind not installed | Run step 2 before step 6 |
+| shadcn init fails | Tailwind not installed | Run step 2 before step 7 |
 | shadcn init fails | Missing import alias | Alias must be in `tsconfig.json` (root), not just `tsconfig.app.json` |
 | `@import` not working | Wrong Tailwind version | Tailwind v4 uses `@import "tailwindcss"`, v3 uses `@tailwind` directives |
 | Vite port conflicts | Other services running | Let user handle dev server, never assume port |
 | Non-empty directory | Vite refuses to scaffold | Create in temp folder, copy files over |
 | OAuth credentials leaked | Forgot to gitignore | Add `client_secret_*.json` to `.gitignore` BEFORE committing |
+| Compiler errors | Violating Rules of React | Check for state mutation, conditional hooks, impure components |
 
 ## Related
 

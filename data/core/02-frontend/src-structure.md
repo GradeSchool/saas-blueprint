@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-23
+last_updated: 2026-01-27
 updated_by: vector-projector
-change: "Initial src directory structure documentation"
+change: "Added /hooks folder, AdminPage, auth-client"
 status: tested
 ---
 
@@ -14,17 +14,21 @@ Organization of the `/src` directory.
 ```
 /src
   /components
-    /modals           <- Specific modal components
+    /modals           # Specific modal components
+      AuthModal.tsx
       TestModal.tsx
-      ConfirmModal.tsx
-    /ui               <- shadcn components (auto-generated)
-    Modal.tsx         <- Base modal shell
-    UserPage.tsx      <- User settings page
+    /ui               # shadcn components (auto-generated)
+    Modal.tsx         # Base modal shell
+    AdminPage.tsx     # Admin dashboard (admins only)
+    UserPage.tsx      # User settings page
+  /hooks
+    useSession.ts     # Session management hook
   /lib
-    utils.ts          <- shadcn utilities (auto-generated)
-  App.tsx             <- Main app component
-  main.tsx            <- Entry point
-  index.css           <- Tailwind + shadcn CSS
+    auth-client.ts    # Better Auth client
+    utils.ts          # shadcn utilities (auto-generated)
+  App.tsx             # Main app component
+  main.tsx            # Entry point
+  index.css           # Tailwind + shadcn CSS
 ```
 
 ## Conventions
@@ -37,21 +41,28 @@ Organization of the `/src` directory.
 | `/components/modals` | All modal components |
 | `/components/ui` | shadcn components (don't edit manually) |
 
+### Hooks
+
+| Location | Purpose |
+|----------|--------|
+| `/hooks` | Custom React hooks |
+
+Example: `useSession.ts` handles session validation, duplicate tab detection, kicked state.
+
 ### Naming
 
-- PascalCase for components: `UserPage.tsx`, `TestModal.tsx`
-- One component per file
-- Name file same as component
+- PascalCase for components: `UserPage.tsx`, `AuthModal.tsx`
+- camelCase for hooks: `useSession.ts`
+- One component/hook per file
+- Name file same as export
 
-### Base vs Specific Components
+### Import Aliases
 
-Base components (like `Modal.tsx`) are reusable shells. Specific components (like `TestModal.tsx`) import the base and provide content.
-
-```
-Modal.tsx          <- Base: handles backdrop, escape, title
-/modals
-  TestModal.tsx    <- Specific: uses Modal, adds content
-  ConfirmModal.tsx <- Specific: uses Modal, adds content
+```typescript
+// Use aliases, not relative paths
+import { Modal } from '@/components/Modal'
+import { useSession } from '@/hooks/useSession'
+import { api } from '@convex/_generated/api'
 ```
 
 ## What Goes Where
@@ -59,26 +70,11 @@ Modal.tsx          <- Base: handles backdrop, escape, title
 | File Type | Location |
 |-----------|----------|
 | Main app shell | `App.tsx` |
-| Page components | `/components` (e.g., `UserPage.tsx`) |
+| Page components | `/components` (e.g., `UserPage.tsx`, `AdminPage.tsx`) |
 | Modal components | `/components/modals` |
-| Reusable UI | `/components` or `/components/ui` |
+| Custom hooks | `/hooks` |
+| Auth client | `/lib/auth-client.ts` |
 | Utilities | `/lib` |
-| Styles | `index.css` (Tailwind handles most) |
-
-## Future Additions
-
-As the app grows, consider:
-
-```
-/src
-  /components
-  /hooks            <- Custom React hooks
-  /lib
-  /types            <- Shared TypeScript types
-  /stores           <- State management (if needed)
-```
-
-Add these only when needed. Don't pre-create empty folders.
 
 ## Related
 

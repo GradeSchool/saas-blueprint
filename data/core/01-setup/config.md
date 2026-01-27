@@ -1,7 +1,7 @@
 ---
 last_updated: 2026-01-27
 updated_by: vector-projector
-change: "Added @convex alias for clean imports"
+change: "Synced vite.config with React Compiler and Tailwind"
 ---
 
 # Config Files
@@ -24,10 +24,18 @@ This keeps imports clean and avoids brittle `../../..` chains that break when fi
 ```typescript
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react({
+      babel: {
+        plugins: [['babel-plugin-react-compiler', { target: '19' }]],
+      },
+    }),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -37,12 +45,17 @@ export default defineConfig({
 })
 ```
 
-## tsconfig.json paths
+## tsconfig.json
 
-Add to root `tsconfig.json`:
+Root tsconfig (references other configs):
 
 ```json
 {
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
@@ -53,13 +66,35 @@ Add to root `tsconfig.json`:
 }
 ```
 
-Also add the same paths to `tsconfig.app.json` if it exists (Vite projects).
+## tsconfig.app.json
+
+Add paths to compilerOptions (must match root tsconfig):
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@convex/*": ["./convex/*"]
+    }
+  },
+  "include": ["src", "convex"]
+}
+```
+
+**Note:** Include `convex` in the include array for type checking convex files.
 
 ## .env.local
 
 ```bash
 # Never commit this file
-CONVEX_DEPLOYMENT=...
-STRIPE_SECRET_KEY=...
-STRIPE_WEBHOOK_SECRET=...
+# Written by `npx convex dev`
+CONVEX_DEPLOYMENT=dev:your-deployment-name
+VITE_CONVEX_URL=https://your-deployment.convex.cloud
+VITE_CONVEX_SITE_URL=https://your-deployment.convex.site
 ```
+
+## Related
+
+- [stack.md](stack.md) - Full scaffolding steps

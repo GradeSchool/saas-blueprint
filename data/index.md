@@ -1,14 +1,14 @@
 ---
-last_updated: 2026-01-23
+last_updated: 2026-01-27
 updated_by: vector-projector
-change: "Added agent workflow callout, status field, app registration docs"
+change: "Updated structure to include emergency procedures and convex deployment docs"
 ---
 
 # SaaS Blueprint
 
 A living knowledge repository for building SaaS apps. Apps are built by a solo dev and AI agents. Apps are focused on 3d printing adjacent tools and helpers. AI agents fetch patterns, apply them to target apps, and **write back** what they learn.
 
-> **AI Agents: Start here ? [core/00-overview/agent-workflow.md](core/00-overview/agent-workflow.md)**
+> **AI Agents: Start here → [core/00-overview/agent-workflow.md](core/00-overview/agent-workflow.md)**
 >
 > Critical workflow rules. Read before doing anything else.
 
@@ -21,7 +21,7 @@ Instead of monorepos, npm packages, or git submodules, AI agents mediate all cod
 3. Agent writes back improvements, decisions, and learnings
 4. Knowledge compounds across all apps
 
-Each SaaS app lives in its own repo, fully independent. No dependencies�code is copied and adapted, not imported.
+Each SaaS app lives in its own repo, fully independent. No dependencies—code is copied and adapted, not imported.
 
 ## API
 
@@ -68,7 +68,7 @@ status: tested
 | `change` | What changed (so other apps know if it is relevant) |
 | `status` | **draft** (untested), **tested** (works in 1 app), **verified** (works in multiple) |
 
-Timestamps enable sync tracking. When you update a doc, other apps can see they are behind and what changed�without reading the full file.
+Timestamps enable sync tracking. When you update a doc, other apps can see they are behind and what changed—without reading the full file.
 
 ## Sync Tracking
 
@@ -130,10 +130,10 @@ Updates that app is `last_checked` to today.
 
 ```
 /core             Sequential setup (00-08), follow in order
-  /00-overview    Architecture decisions, philosophy, AGENT WORKFLOW
-  /01-setup       Project scaffolding, stack
+  /00-overview    Architecture, philosophy, agent workflow, EMERGENCY PROCEDURES
+  /01-setup       Project scaffolding, stack, React Compiler
   /02-frontend    React, UI, viewport gate, layout, save pattern
-  /03-convex      Backend, schema, queries
+  /03-convex      Backend, schema, queries, dev-v-prod, migrations
   /04-auth        better-auth setup
   /05-storage     File handling, limits
   /06-payments    Stripe integration
@@ -152,19 +152,19 @@ Updates that app is `last_checked` to today.
 **Full details:** [core/00-overview/agent-workflow.md](core/00-overview/agent-workflow.md)
 
 ```
-1. READ    ? Fetch relevant docs from blueprint
-2. IMPLEMENT ? Write code in target app  
-3. VERIFY  ? Run build/lint, user tests manually
-4. CONFIRM ? User says it works
-5. WRITE   ? POST updates back to blueprint
-6. MARK    ? POST to /api/apps/{name}/checked
+1. READ    → Fetch relevant docs from blueprint
+2. IMPLEMENT → Write code in target app  
+3. VERIFY  → Run build/lint, user tests manually
+4. CONFIRM → User says it works
+5. WRITE   → POST updates back to blueprint
+6. MARK    → POST to /api/apps/{name}/checked
 ```
 
 **Never update the blueprint with untested code.**
 
 ## Stack
 
-Vite + React + TypeScript + Convex + shadcn + Stripe
+Vite + React 19 + React Compiler + TypeScript + Convex + shadcn + Stripe
 
 ## Philosophy
 
