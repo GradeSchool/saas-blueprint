@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-27
+last_updated: 2026-01-28
 updated_by: vector-projector
-change: "Marked session enforcement as implemented"
+change: "Added crowdfunding backer sign up flow"
 status: tested
 ---
 
@@ -21,6 +21,7 @@ Plain-English guide covering all scenarios. Use this as a testing checklist.
 | `betterAuth:session` | Better Auth | Auth sessions, tokens, expiry |
 | `users` | App | App-specific data (subscriptions, preferences) |
 | `admins` | App | Admin whitelist (emails) |
+| `crowdfunding_backers` | App | MakerWorld backer verification |
 
 **Why two user tables?**
 - Separation of concerns - auth vs app data
@@ -44,7 +45,7 @@ Plain-English guide covering all scenarios. Use this as a testing checklist.
 
 ```typescript
 // Called after every successful sign-in
-const result = await ensureAppUser()
+const result = await ensureAppUser({ crowdfundingBackerId })
 // Returns: { userId, email, name, isAdmin, sessionId }
 ```
 
@@ -92,8 +93,60 @@ admins: defineTable({
 |--------|----------|---------------|-------------|
 | **Google OAuth** | Auto-creates account, logged in | Logged in | YES |
 | **Email/Password** | Must sign up, verify email | Must sign in | NO - manual after verify |
+| **Backer (crowdfunding)** | Verify first, then email/Google | N/A - one-time | Depends on method |
 
 **Key insight:** Google OAuth has no sign up vs sign in distinction. "Continue with Google" works for both. Email/password requires explicit steps.
+
+---
+
+## Crowdfunding Backer Sign Up Flow
+
+**When active:** `app_state.crowdfundingActive = true`
+
+During crowdfunding, only verified MakerWorld backers can create new accounts. Sign in works normally.
+
+### Step 1: Backer Verification
+
+```
+1. User clicks "Sign Up"
+2. Modal shows backer verification form (NOT standard sign up)
+3. User enters MakerWorld username + access code
+4. CLIENT: verifyBacker() mutation
+5. If invalid → show error
+6. If already used → show "code already used" error
+7. If valid → store backerId, show standard sign up form
+```
+
+### Step 2: Account Creation (Email/Password)
+
+```
+8. User sees "Backer Verified!" message with tier
+9. User fills Name, Email, Password
+10. Normal sign up flow (see below)
+11. CLIENT: ensureAppUser({ crowdfundingBackerId })
+12. User record stores backerId, backer marked as used
+```
+
+### Step 2: Account Creation (Google OAuth)
+
+```
+8. User sees "Backer Verified!" message with tier
+9. User clicks "Continue with Google"
+10. CLIENT: Store backerId in sessionStorage (survives redirect)
+11. OAuth redirect → Google → back to app
+12. APP: Retrieve backerId from sessionStorage
+13. APP: ensureAppUser({ crowdfundingBackerId })
+14. User record stores backerId, backer marked as used
+15. Clear sessionStorage
+```
+
+### Key Implementation Details
+
+- `vp_backer_id` in sessionStorage survives OAuth redirect
+- Backer codes are one-time use (`usedByUserId` field)
+- User's `crowdfundingBackerId` enables future tier-based billing
+
+See [crowdfunding-mode.md](crowdfunding-mode.md) for full details.
 
 ---
 
@@ -245,6 +298,14 @@ See [testing.md](testing.md) for detailed patterns.
 - [x] User logged in after verify
 - [x] Password requirements enforced
 
+### Crowdfunding Backer Sign Up
+- [x] Invalid credentials rejected
+- [x] Already-used codes rejected
+- [x] Valid code shows standard sign up
+- [x] Email/password flow links backer
+- [x] Google OAuth flow links backer
+- [x] Backer marked as used after sign up
+
 ### Session Enforcement
 - [x] Cross-device kick works
 - [x] Duplicate tab detection works
@@ -260,17 +321,19 @@ See [testing.md](testing.md) for detailed patterns.
 
 | File | Purpose |
 |------|--------|
-| `convex/schema.ts` | users, admins tables |
+| `convex/schema.ts` | users, admins, crowdfunding_backers tables |
 | `convex/users.ts` | ensureAppUser, validateSession |
+| `convex/crowdfundingBackers.ts` | verifyBacker, addBacker |
 | `src/hooks/useSession.ts` | Session management |
-| `src/components/modals/AuthModal.tsx` | Auth forms |
-| `src/App.tsx` | Session integration, admin routing |
+| `src/components/modals/AuthModal.tsx` | Auth forms, backer verification |
+| `src/App.tsx` | Session integration, admin routing, backer ID retrieval |
 
 ---
 
 ## Related
 
 - [better-auth.md](better-auth.md) - Auth implementation
+- [crowdfunding-mode.md](crowdfunding-mode.md) - Crowdfunding backer flow details
 - [emails.md](emails.md) - Email system
 - [testing.md](testing.md) - Testing patterns
 - [../02-frontend/single-session.md](../02-frontend/single-session.md) - Session enforcement

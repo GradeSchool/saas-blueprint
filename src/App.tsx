@@ -371,27 +371,39 @@ function App() {
               <div className="rounded-lg border p-4 bg-muted/50">
                 <h3 className="font-semibold mb-3">🤖 AI Agent Quick Start</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Connect to this blueprint API to fetch patterns for your SaaS app.
+                  Connect to this blueprint API to fetch patterns for your SaaS app. Click to copy curl command.
                 </p>
 
                 <div className="space-y-3 text-sm font-mono">
-                  <div>
-                    <div className="text-muted-foreground mb-1"># Start here - get the index</div>
-                    <code className="bg-background px-2 py-1 rounded border">GET /api/index</code>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground mb-1"># List all available files</div>
-                    <code className="bg-background px-2 py-1 rounded border">GET /api/files</code>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground mb-1"># Get a specific file or directory</div>
-                    <code className="bg-background px-2 py-1 rounded border">GET /api/files/core/02-frontend/save-pattern.md</code>
-                  </div>
+                  {[
+                    { comment: "# Start here - get the index", path: "/api/index" },
+                    { comment: "# List all available files", path: "/api/files" },
+                    { comment: "# Get a specific file or directory", path: "/api/files/core/02-frontend/save-pattern.md" },
+                  ].map(({ comment, path }) => (
+                    <div key={path}>
+                      <div className="text-muted-foreground mb-1">{comment}</div>
+                      <code
+                        className="bg-background px-2 py-1 rounded border cursor-pointer hover:bg-accent transition-colors inline-block"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`curl http://localhost:3001${path}`)
+                        }}
+                        title="Click to copy curl command"
+                      >
+                        GET {path}
+                      </code>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-4 pt-4 border-t">
                   <div className="text-sm font-medium mb-2">Base URL</div>
-                  <code className="text-sm bg-background px-2 py-1 rounded border">http://localhost:3001</code>
+                  <code
+                    className="text-sm bg-background px-2 py-1 rounded border cursor-pointer hover:bg-accent transition-colors inline-block"
+                    onClick={() => navigator.clipboard.writeText("http://localhost:3001")}
+                    title="Click to copy"
+                  >
+                    http://localhost:3001
+                  </code>
                 </div>
               </div>
             </div>

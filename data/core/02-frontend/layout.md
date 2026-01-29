@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-23
+last_updated: 2026-01-28
 updated_by: vector-projector
-change: "Updated dimensions to w-80/h-16, fixed navigation description"
+change: "Separated concerns: header is navigation, sidebar is app tools, scene toolbar is project controls"
 status: tested
 ---
 
@@ -15,16 +15,17 @@ HeroForge-style SPA layout. All apps follow this structure.
 - **Step-based workflow**: Numbered steps (1-6) control panel content
 - **Always-visible 3D scene**: Never scrolls, always present
 - **Desktop-only**: No mobile, no responsive breakpoints
+- **Separation of concerns**: Header for navigation, sidebar for app tools, scene toolbar for project controls
 
 ## Layout Zones
 
 ```
 +-------------+----------------------------+-------+
 |    LOGO     |           MENU             | USER  |
-|   (w-80)    |    (flex-1, centered)      |(w-20) |
-+--+--+--+--+-+----------------------------+-------+
-|1 |2 |3 |4 |5 |6 |                                |
-+--+--+--+--+-----+                                |
+|   (w-80)    |   (navigation only)        |(w-40) |
++--+--+--+--+-+---+------------------------+-------+
+|1 |2 |3 |4 |5 |6 | New Project | Name | Save     |
++--+--+--+--+-----+----------------------------+---+
 |    UPDATES      |                                |
 +-----------------+           SCENE                |
 |                 |        (flex-1)                |
@@ -34,6 +35,35 @@ HeroForge-style SPA layout. All apps follow this structure.
 +-----------------+--------------------------------+
          w-80                  flex-1
 ```
+
+## Zone Responsibilities
+
+### Header Menu (Navigation)
+
+The header menu is **navigation only**. Links to other pages/views:
+- Pricing
+- FAQ
+- Other informational pages
+
+**Do NOT put** project controls, tools, or actions here.
+
+### Sidebar (App Tools)
+
+The left sidebar contains **app tools**:
+- Step numbers (1-6) to switch between tool panels
+- Updates section for notifications
+- Panel content specific to each step
+
+These are the tools users interact with to build/create.
+
+### Scene Toolbar (Project Controls)
+
+The top of the scene area contains **project controls**:
+- New Project - create new project
+- Project Name - display/edit current project name
+- Save - save current project
+
+These controls manage the project lifecycle, separate from the app tools.
 
 ## Structure
 
@@ -57,22 +87,21 @@ Full viewport height, no scrolling at root level.
     App Name
   </button>
 
-  {/* Menu - fills center */}
+  {/* Menu - NAVIGATION ONLY */}
   <div className="flex-1 h-full flex items-center justify-center gap-6 bg-teal-500">
-    <button>Pricing</button>
-    <button>FAQ</button>
-    <button>New Project</button>
-    <span>Project Name</span>
-    <button>Save</button>
+    <button onClick={() => setCurrentPage('pricing')}>Pricing</button>
+    <button onClick={() => setCurrentPage('faq')}>FAQ</button>
   </div>
 
   {/* User - navigates to user page */}
-  <button
-    onClick={() => setCurrentPage('user')}
-    className="w-20 h-full flex items-center justify-center bg-orange-400 hover:bg-orange-500"
-  >
-    User
-  </button>
+  <div className="w-40 h-full flex shrink-0">
+    <button
+      onClick={() => setCurrentPage('user')}
+      className="w-full h-full flex items-center justify-center bg-orange-400 hover:bg-orange-500"
+    >
+      User
+    </button>
+  </div>
 </header>
 ```
 
@@ -81,6 +110,10 @@ Full viewport height, no scrolling at root level.
 ```tsx
 {currentPage === 'user' ? (
   <UserPage onBack={() => setCurrentPage('main')} />
+) : currentPage === 'faq' ? (
+  <FaqPage onBack={() => setCurrentPage('main')} />
+) : currentPage === 'pricing' ? (
+  <PricingPage onBack={() => setCurrentPage('main')} />
 ) : (
   <div className="flex flex-1 overflow-hidden">
     <aside>...</aside>  {/* Sidebar */}
@@ -93,7 +126,7 @@ Full viewport height, no scrolling at root level.
 
 ```tsx
 <aside className="w-80 flex flex-col border-r shrink-0">
-  {/* Step buttons */}
+  {/* Step buttons - APP TOOLS */}
   <div className="flex shrink-0">
     {[1,2,3,4,5,6].map(step => (
       <button
@@ -120,11 +153,24 @@ Full viewport height, no scrolling at root level.
 </aside>
 ```
 
-### Scene
+### Scene with Toolbar
 
 ```tsx
-<main className="flex-1 flex items-center justify-center bg-slate-50 overflow-hidden">
-  {/* 3D canvas will go here */}
+<main className="flex-1 flex flex-col overflow-hidden">
+  {/* Project toolbar - PROJECT CONTROLS */}
+  <div className="h-10 flex items-center gap-4 px-4 border-b bg-white shrink-0">
+    <button className="text-sm text-slate-600 hover:text-slate-900 hover:underline">
+      New Project
+    </button>
+    <span className="text-sm text-slate-400">Project Name</span>
+    <button className="text-sm text-slate-600 hover:text-slate-900 hover:underline">
+      Save
+    </button>
+  </div>
+  {/* Scene - never scrolls */}
+  <div className="flex-1 flex items-center justify-center bg-slate-50 overflow-hidden">
+    {/* 3D canvas will go here */}
+  </div>
 </main>
 ```
 
@@ -133,7 +179,7 @@ Full viewport height, no scrolling at root level.
 ## State
 
 ```tsx
-type Page = 'main' | 'user'
+type Page = 'main' | 'user' | 'faq' | 'pricing'
 
 const [activeStep, setActiveStep] = useState(1)
 const [currentPage, setCurrentPage] = useState<Page>('main')
@@ -141,12 +187,13 @@ const [currentPage, setCurrentPage] = useState<Page>('main')
 
 ## Navigation Rules
 
-| Element | Behavior |
-|---------|----------|
-| Logo | Navigates to main via state (no page reload) |
-| Menu items | In-app actions (modals, state changes) |
-| User | Navigates to user page via state |
-| Steps | Changes Panel content, stays on page |
+| Element | Zone | Behavior |
+|---------|------|----------|
+| Logo | Header | Navigates to main via state |
+| Menu items | Header | Navigate to info pages (FAQ, Pricing) |
+| User | Header | Navigates to user page |
+| Steps | Sidebar | Changes Panel content, stays on page |
+| New/Save | Scene Toolbar | Project lifecycle actions |
 
 ## Colors (Reference)
 
@@ -158,6 +205,7 @@ Placeholder colors from wireframe. Apps define their own palette.
 - Updates: `bg-rose-400`
 - Active step: `bg-slate-500`
 - Inactive step: `bg-slate-200`
+- Scene toolbar: `bg-white`
 
 ## Next Steps
 

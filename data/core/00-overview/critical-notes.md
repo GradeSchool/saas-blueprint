@@ -1,13 +1,51 @@
 ---
-last_updated: 2026-01-26
+last_updated: 2026-01-28
 updated_by: vector-projector
-change: "Added logo display requirement - needs verified domain"
-status: planned
+change: "Added env var validation section, updated rate limiting status, clarified bot protection for auth routes"
+status: partial
 ---
 
 # Critical Notes
 
 Items that need implementation before production.
+
+---
+
+## Environment Variable Validation
+
+**Status:** IMPLEMENTED
+
+Required env vars are validated at startup with clear error messages.
+
+### Pattern
+
+```typescript
+// convex/auth.ts
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}. ` +
+      `Set it in Convex Dashboard > Settings > Environment Variables.`
+    );
+  }
+  return value;
+}
+
+const siteUrl = requireEnv("SITE_URL");
+const googleClientId = requireEnv("GOOGLE_CLIENT_ID");
+const googleClientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
+```
+
+### Required Env Vars (Convex Dashboard)
+
+| Variable | Purpose |
+|----------|--------|
+| `SITE_URL` | Frontend URL for OAuth redirects |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `BETTER_AUTH_SECRET` | Session encryption |
+| `RESEND_API_KEY` | Email sending |
 
 ---
 
@@ -206,13 +244,14 @@ TTL: 3600
 │  - Invisible CAPTCHA powered by Kasada                  │
 │  - Apply to: signup, login, password reset              │
 │  - Basic: free, Deep Analysis: $1/1000 calls            │
+│  *** CRITICAL: This protects auth HTTP routes ***       │
 └─────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────┐
-│  LAYER 3: Convex Rate Limiting                          │
-│  - Limit signups per IP (e.g., 5/hour)                  │
-│  - Limit login attempts per email (e.g., 10/hour)       │
-│  - Limit password resets (e.g., 3/hour)                 │
+│  LAYER 3: Convex Rate Limiting (PARTIALLY IMPLEMENTED)  │
+│  - sessionCreate: Applied to ensureAppUser              │
+│  - backerVerify: Applied to verifyBacker                │
+│  - Auth HTTP routes: NOT covered (use BotID instead)    │
 └─────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -221,6 +260,12 @@ TTL: 3600
 │  - Google OAuth users skip this entirely                │
 └─────────────────────────────────────────────────────────┘
 ```
+
+### Why BotID is Critical for Auth
+
+Better Auth registers HTTP routes directly via `authComponent.registerRoutes()`. We don't have middleware hooks to inject rate limiting into these routes. The endpoints for OTP send/verify, sign-in, sign-up are exposed without Convex-level rate limiting.
+
+**Vercel BotID fills this gap** by protecting these routes at the edge before requests reach Convex.
 
 ### Vercel Pro + BotID
 
@@ -262,9 +307,45 @@ TTL: 3600
 
 ---
 
+## Convex Rate Limiting
+
+**Status:** PARTIALLY IMPLEMENTED
+
+### What's Implemented
+
+| Rule | Applied To | Key | Status |
+|------|-----------|-----|--------|
+| `sessionCreate` | `ensureAppUser` | Auth user ID | ✅ Done |
+| `backerVerify` | `verifyBacker` | Username | ✅ Done |
+
+### What's NOT Covered
+
+| Endpoint | Why Not | Mitigation |
+|----------|---------|------------|
+| OTP send/verify | Better Auth HTTP routes, no middleware hook | Vercel BotID |
+| Sign up | Better Auth HTTP routes | Vercel BotID |
+| Sign in | Better Auth HTTP routes | Vercel BotID |
+
+### Rules Defined (ready for future use)
+
+```typescript
+// convex/rateLimiter.ts
+otpVerify: { kind: "fixed window", rate: 5, period: MINUTE },
+otpSend: { kind: "fixed window", rate: 3, period: HOUR },
+passwordReset: { kind: "fixed window", rate: 3, period: HOUR },
+signUp: { kind: "fixed window", rate: 10, period: HOUR },
+signIn: { kind: "fixed window", rate: 20, period: MINUTE },
+backerVerify: { kind: "fixed window", rate: 5, period: MINUTE },
+sessionCreate: { kind: "fixed window", rate: 10, period: MINUTE },
+```
+
+See [../03-convex/rate-limiting.md](../03-convex/rate-limiting.md) for full details.
+
+---
+
 ## Email Strategy: Resend Free Tier
 
-**Status:** PLANNED
+**Status:** IMPLEMENTED
 
 ### Resend Free Tier Limits
 
@@ -312,28 +393,11 @@ const FROM_EMAIL = `${APP_NAME} <noreply@weheart.art>`;
 
 ---
 
-## Convex Rate Limiting
-
-**Status:** TODO - Needs research and implementation
-
-**What to rate limit:**
-
-| Endpoint | Suggested Limit |
-|----------|----------------|
-| Signup | 5 per IP per hour |
-| Login attempts | 10 per email per hour |
-| Password reset | 3 per email per hour |
-| Email sends | 10 per IP per hour |
-
-**TODO:**
-- [ ] Research Convex rate limiting API
-- [ ] Implement rate limiter utility
-- [ ] Apply to auth endpoints
-- [ ] Add to blueprint when tested
-
----
-
 ## Production Checklist
+
+### Environment Variables
+- [x] Env var validation at startup (fails fast with clear errors)
+- [ ] All env vars set in production Convex deployment
 
 ### Custom Domain / OAuth Branding
 - [ ] Custom domain set up in Convex (`api.vectorprojector.weheart.art`)
@@ -353,20 +417,24 @@ const FROM_EMAIL = `${APP_NAME} <noreply@weheart.art>`;
 - [ ] Set up custom domain for frontend
 
 ### Resend
-- [ ] Create Resend account (free tier)
-- [ ] Verify `weheart.art` domain
-- [ ] Add `RESEND_API_KEY` to Convex env
-- [ ] Update `FROM_EMAIL` in `convex/emails.ts`
+- [x] Create Resend account (free tier)
+- [x] Verify `weheart.art` domain
+- [x] Add `RESEND_API_KEY` to Convex env
+- [x] Update `FROM_EMAIL` in `convex/emails.ts`
 
-### Convex
-- [ ] Implement rate limiting
-- [ ] Configure production deployment
-- [ ] Set all env vars for production
+### Security
+- [x] CORS restricted to allowed origins
+- [x] `addBacker` is internal-only mutation
+- [x] `verifyBacker` rate limited
+- [x] `ensureAppUser` rate limited
+- [x] Safe storage helpers (localStorage/sessionStorage)
+- [x] BroadcastChannel wrapped in try/catch
+- [ ] Vercel BotID for auth HTTP routes
 
 ### Per-App
 - [ ] BotID integration on auth routes
-- [ ] Test email verification flow
-- [ ] Test Google OAuth flow
+- [x] Test email verification flow
+- [x] Test Google OAuth flow
 - [ ] Privacy policy page
 - [ ] Terms of service page
 

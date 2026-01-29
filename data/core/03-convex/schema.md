@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-27
+last_updated: 2026-01-28
 updated_by: vector-projector
-change: "Added app_state table with singleton pattern"
+change: "Added crowdfunding_backers table"
 status: tested
 ---
 
@@ -25,6 +25,8 @@ export default defineSchema({
     createdAt: v.number(),
     activeSessionId: v.optional(v.string()),
     sessionStartedAt: v.optional(v.number()),
+    // Crowdfunding backer link (for tier-based billing discounts)
+    crowdfundingBackerId: v.optional(v.id("crowdfunding_backers")),
   })
     .index("by_authUserId", ["authUserId"])
     .index("by_email", ["email"]),
@@ -41,8 +43,26 @@ export default defineSchema({
     key: v.string(),           // always "config"
     crowdfundingActive: v.boolean(),
   }).index("by_key", ["key"]),
+
+  // Crowdfunding backers - verified MakerWorld supporters
+  crowdfunding_backers: defineTable({
+    username: v.string(),       // MakerWorld username
+    accessCode: v.string(),     // Verification code
+    tier: v.string(),           // Backer tier (affects future billing)
+    usedByUserId: v.optional(v.id("users")),  // User who claimed this
+    usedAt: v.optional(v.number()),           // When claimed
+  })
+    .index("by_username_code", ["username", "accessCode"])
+    .index("by_usedByUserId", ["usedByUserId"]),
 });
 ```
+
+## Naming Conventions
+
+| Element | Convention | Example |
+|---------|------------|--------|
+| Tables | snake_case | `app_state`, `crowdfunding_backers` |
+| Columns | camelCase | `authUserId`, `accessCode` |
 
 ## Singleton Pattern (app_state)
 
@@ -88,17 +108,34 @@ export const set = mutation({
 
 Don't manually add rows in dashboard - use the mutation.
 
-## Two-Table Pattern
+## Crowdfunding Backers Pattern
 
-Better Auth manages its own tables. App tables are separate:
+The `crowdfunding_backers` table tracks MakerWorld backers who can sign up during crowdfunding.
+
+**Key concepts:**
+- Each backer has a unique username + accessCode combination
+- `usedByUserId` tracks which user claimed this backer slot (one-time use)
+- `tier` stores backer level for future billing discounts
+- Users link back via `crowdfundingBackerId` field
+
+**Add a backer:**
+```bash
+npx convex run crowdfundingBackers:addBacker '{"username": "user123", "accessCode": "ABC123", "tier": "Gold"}'
+```
+
+See [../04-auth/crowdfunding-mode.md](../04-auth/crowdfunding-mode.md) for full flow.
+
+## Tables Overview
 
 | Table | Purpose |
 |-------|--------|
-| `users` | App-specific user data, session tracking |
+| `users` | App-specific user data, session tracking, backer link |
 | `admins` | Email whitelist for admin access |
 | `app_state` | Global app configuration (singleton) |
+| `crowdfunding_backers` | MakerWorld backer verification |
 
 ## Related
 
 - [users.md](users.md) - User management patterns
 - [setup.md](setup.md) - Initial Convex setup
+- [../04-auth/crowdfunding-mode.md](../04-auth/crowdfunding-mode.md) - Crowdfunding auth flow

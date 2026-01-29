@@ -1,12 +1,20 @@
 ---
-last_updated: 2026-01-23
-updated_by: saas-blueprint
-change: "Initial Stripe integration"
+last_updated: 2026-01-28
+updated_by: vector-projector
+change: "Added account access info"
 ---
 
 # Stripe
 
 Stripe integration for SaaS billing. Not MOR (Polar/Dodo).
+
+## Account Access
+
+**Login:** [dashboard.stripe.com](https://dashboard.stripe.com)
+
+**Auth:** Google OAuth with `weheartdotart@gmail.com`
+
+Make sure you're logged into Google with this account before accessing Stripe.
 
 ## Decision
 

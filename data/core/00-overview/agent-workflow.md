@@ -1,25 +1,55 @@
 ---
-last_updated: 2026-01-25
+last_updated: 2026-01-29
 updated_by: vector-projector
-change: "Updated port convention: apps on 5173, blueprint on 4001"
+change: "Added quickstart manifest reference, context efficiency section"
 status: verified
+context_cost: 2KB
+type: setup
 ---
 
 # Agent Workflow
 
-**READ THIS FIRST.** This document defines how AI agents interact with the blueprint.
+**READ THIS FIRST.** Defines how AI agents interact with the blueprint.
+
+---
+
+## Quick Start
+
+**For spinning up a new app:** Read [quickstart-manifest.md](quickstart-manifest.md) first. It tells you exactly which files to read and in what order.
+
+**For checking progress:** Read [checkpoints.md](checkpoints.md) to validate each setup phase.
+
+---
 
 ## The Golden Rule
 
 **Never update the blueprint with untested code.**
 
-The blueprint is a source of truth. If you add broken patterns, every future agent (and app) inherits your mistakes. Verify first, document second.
+---
+
+## Context Efficiency
+
+Blueprint files have two types:
+
+| Type | Frontmatter | When to Read |
+|------|-------------|---------------|
+| `setup` | `type: setup` | During initial build |
+| `reference` | `type: reference` | Only when something breaks |
+
+**Check `context_cost` in frontmatter** to estimate how much context a file uses.
+
+**Warning signs you're reading too much:**
+- Over 15KB of blueprint docs before writing code
+- Reading "Lessons Learned" sections before trying
+- Reading troubleshooting tables upfront
+
+---
 
 ## Workflow Sequence
 
 ```
-1. READ    - Fetch relevant docs from blueprint
-2. IMPLEMENT - Write code in target app
+1. READ    - Fetch docs per quickstart-manifest.md
+2. IMPLEMENT - Write code in target app  
 3. VERIFY  - Run build/lint, user tests manually
 4. CONFIRM - User says it works
 5. WRITE   - POST updates back to blueprint
@@ -29,33 +59,29 @@ The blueprint is a source of truth. If you add broken patterns, every future age
 ### Step 1: Read
 
 ```bash
-GET /api/index                    # Understand structure
-GET /api/changes?since={date}     # See what is new
-GET /api/files/{path}             # Read specific docs
+GET /api/files/core/00-overview/quickstart-manifest.md  # What to read
+GET /api/files/{path}                                    # Read specific docs
 ```
 
-Check the `status` field in frontmatter:
-- `draft` - Untested, use with caution
-- `tested` - Works in at least one app
-- `verified` - Works in multiple apps, battle-tested
+Check frontmatter:
+- `type: setup` - Read during initial build
+- `type: reference` - Read only when debugging
+- `context_cost` - Estimate reading size
 
 ### Step 2: Implement
 
-Apply patterns to your target app. Adapt as needed - the blueprint provides patterns, not copy-paste code.
+Apply patterns to your target app. Adapt as needed.
 
 ### Step 3: Verify
 
-**Always run:**
 ```bash
 npm run build
 npm run lint
 ```
 
-If either fails, fix before proceeding.
-
 ### Step 4: Confirm
 
-**Wait for the user.** They run the dev server, they test the UI, they confirm it works. Do not skip this step.
+**Wait for the user.** They test the UI, they confirm it works.
 
 ### Step 5: Write Back
 
@@ -63,46 +89,20 @@ Only after user confirmation:
 
 ```bash
 POST /api/files/{path}
-Body: {
-  "content": "...",
-  "source": "your-app-name"
-}
+Body: { "content": "...", "source": "your-app-name" }
 ```
 
-**Frontmatter is required:**
+**Required frontmatter:**
 ```yaml
 ---
-last_updated: 2026-01-23
+last_updated: 2026-01-29
 updated_by: your-app-name
-change: "Brief description of what changed"
+change: "Brief description"
 status: tested
+context_cost: 2KB
+type: setup | reference
 ---
 ```
-
-#### The Temp File Trick
-
-**Problem:** Inline JSON in curl commands requires painful escaping. Quotes, newlines, and special characters cause shell errors.
-
-**Solution:** Write JSON to a temp file, use `curl -d @filename`, then delete.
-
-```bash
-# Step 1: Write JSON to temp file (use your editor/Write tool)
-# temp-update.json contains:
-# {
-#   "content": "Your markdown content here...",
-#   "source": "your-app-name"
-# }
-
-# Step 2: POST using the file
-curl -X POST http://localhost:3001/api/files/path/to/doc.md \
-  -H "Content-Type: application/json" \
-  -d @temp-update.json
-
-# Step 3: Clean up
-rm temp-update.json
-```
-
-This avoids escaping hell and makes the content readable/editable.
 
 ### Step 6: Mark Synced
 
@@ -111,55 +111,29 @@ POST /api/apps/{name}/checked
 Body: {}
 ```
 
-Simple POST with empty body - no escaping issues here:
-```bash
-curl -X POST http://localhost:3001/api/apps/your-app/checked \
-  -H "Content-Type: application/json" -d "{}"
-```
-
-## Registering a New App
-
-Apps must be registered before using `/api/apps/{name}/checked`.
-
-**Option 1:** Edit `config/apps.json` directly (use temp file trick for complex JSON).
-
-**Option 2:** Merge with existing apps (read first, add yours, write back).
+---
 
 ## Things Agents Should NEVER Do
 
-1. **Run the dev server.** The user handles this. Port conflicts and process management are their domain.
+1. **Run the dev server** - User handles this
+2. **Handle git operations** unless asked
+3. **Trust reference docs blindly** - They're for debugging, not setup
+4. **Update blueprint before verification**
 
-2. **Handle git operations** unless explicitly asked. No commits, no pushes.
-
-3. **Trust draft docs blindly.** Check the status field. If it is missing or says `draft`, verify extra carefully.
-
-4. **Update blueprint before verification.** This creates technical debt for every future agent.
+---
 
 ## Port Convention
 
-| Service | Port | Notes |
-|---------|------|-------|
-| Blueprint frontend | 4001 | Always runs here, won't conflict |
-| SaaS apps (Vite) | 5173 | Default Vite port, required for Google OAuth |
-| Blueprint API | 3001 | API endpoints |
+| Service | Port |
+|---------|------|
+| Blueprint frontend | 4001 |
+| SaaS apps (Vite) | 5173 |
+| Blueprint API | 3001 |
 
-> **Before starting development:**
-> 1. Ensure no other SaaS apps are running (they would take port 5173)
-> 2. Start your app - verify it runs on port 5173
-> 3. Google OAuth is configured for port 5173 - wrong port = OAuth failure
->
-> See [../04-auth/google-oauth-setup.md](../04-auth/google-oauth-setup.md) for details.
-
-## Gotchas We Have Learned
-
-| Problem | Solution |
-|---------|----------|
-| shadcn init fails | Install Tailwind first, configure aliases in BOTH tsconfig files |
-| OAuth redirect_uri_mismatch | App not on port 5173 - stop other Vite apps, restart yours |
-| App registration fails | App must exist in config/apps.json first |
-| Curl JSON escaping hell | Use temp file trick (write file, `curl -d @file`, delete) |
+---
 
 ## Related
 
-- [../index.md](../index.md) - Blueprint overview and API reference
+- [quickstart-manifest.md](quickstart-manifest.md) - What files to read
+- [checkpoints.md](checkpoints.md) - Validation points
 - [../01-setup/stack.md](../01-setup/stack.md) - Project scaffolding

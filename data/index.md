@@ -1,39 +1,36 @@
 ---
-last_updated: 2026-01-27
+last_updated: 2026-01-29
 updated_by: vector-projector
-change: "Updated structure to include emergency procedures and convex deployment docs"
+change: "Added quickstart manifest as primary agent entry point"
 ---
 
 # SaaS Blueprint
 
-A living knowledge repository for building SaaS apps. Apps are built by a solo dev and AI agents. Apps are focused on 3d printing adjacent tools and helpers. AI agents fetch patterns, apply them to target apps, and **write back** what they learn.
+A living knowledge repository for building SaaS apps. Apps are built by a solo dev and AI agents.
 
-> **AI Agents: Start here → [core/00-overview/agent-workflow.md](core/00-overview/agent-workflow.md)**
->
-> Critical workflow rules. Read before doing anything else.
+---
 
-## Why This Exists
+## AI Agents: Start Here
 
-Instead of monorepos, npm packages, or git submodules, AI agents mediate all code sharing:
+| Goal | Start With |
+|------|------------|
+| **Spin up a new app** | [quickstart-manifest.md](core/00-overview/quickstart-manifest.md) |
+| **Understand workflow rules** | [agent-workflow.md](core/00-overview/agent-workflow.md) |
+| **Validate setup progress** | [checkpoints.md](core/00-overview/checkpoints.md) |
+| **Debug something broken** | [hardening-patterns.md](core/00-overview/hardening-patterns.md) |
 
-1. Agent reads patterns from here
-2. Agent applies patterns to a target app
-3. Agent writes back improvements, decisions, and learnings
-4. Knowledge compounds across all apps
-
-Each SaaS app lives in its own repo, fully independent. No dependencies—code is copied and adapted, not imported.
+---
 
 ## API
 
 ### Read
 
 ```
-GET /api/index                    This file (start here)
-GET /api/files                    List all files and directories
-GET /api/files/{path}             Get file content or directory listing
-GET /api/changes?since=YYYY-MM-DD List files updated since date
-GET /api/apps                     List registered apps and sync status
-GET /api/apps/{name}              Get specific app status
+GET /api/index                    This file
+GET /api/files                    List all files
+GET /api/files/{path}             Get file content
+GET /api/changes?since=YYYY-MM-DD List updated files
+GET /api/apps                     List registered apps
 ```
 
 ### Write
@@ -41,131 +38,64 @@ GET /api/apps/{name}              Get specific app status
 ```
 POST /api/files/{path}
 Body: { "content": "...", "source": "app-name" }
-Response: { "success": true, "action": "created|updated", "path": "..." }
 
 POST /api/apps/{name}/checked
 Body: {}
-Response: { "success": true, "last_checked": "2026-01-23" }
 ```
+
+---
 
 ## Frontmatter Format
 
-**Required** on all markdown files:
-
 ```yaml
 ---
-last_updated: 2026-01-23
+last_updated: 2026-01-29
 updated_by: your-app-name
-change: "Brief description of what changed"
+change: "Brief description"
 status: tested
+context_cost: 2KB
+type: setup | reference
+requires: [file.md]
+unlocks: [file.md]
 ---
 ```
 
 | Field | Purpose |
 |-------|--------|
-| `last_updated` | When this file was last modified |
-| `updated_by` | Which app triggered the update |
-| `change` | What changed (so other apps know if it is relevant) |
-| `status` | **draft** (untested), **tested** (works in 1 app), **verified** (works in multiple) |
+| `context_cost` | Estimated reading size for context planning |
+| `type` | `setup` (read during build) or `reference` (read when debugging) |
+| `requires` | Files that must be read first |
+| `unlocks` | Files that can be read after this |
 
-Timestamps enable sync tracking. When you update a doc, other apps can see they are behind and what changed—without reading the full file.
-
-## Sync Tracking
-
-Apps register with the blueprint. Each app has a `last_checked` timestamp.
-
-### Registering a New App
-
-Before using `/api/apps/{name}/checked`, your app must exist in `config/apps.json`.
-
-**Read existing apps:**
-```
-GET /api/files/config/apps.json
-```
-
-**Add your app** (merge with existing):
-```
-POST /api/files/config/apps.json
-Body: {
-  "content": "{\"apps\":{...existing...,\"your-app\":{\"last_checked\":\"2026-01-23\",\"description\":\"Your app description\"}}}",
-  "source": "your-app"
-}
-```
-
-### Checking for Updates
-
-**To see what has changed for an app:**
-```
-GET /api/changes?since=2026-01-20
-```
-
-Returns files with `last_updated` after that date, plus their `change` summaries.
-
-**After reviewing/applying changes:**
-```
-POST /api/apps/your-app-name/checked
-```
-
-Updates that app is `last_checked` to today.
-
-## Best Practices
-
-**Keep files short.** Context limits are a hard problem. Prefer many small files over few large ones. If a file grows beyond ~100 lines, split it.
-
-**Add cross-references.** Point to related files so agents do not waste tokens searching:
-
-```markdown
-## Related
-- [schema.md](schema.md) - Database schema
-- [../05-storage/limits.md](../05-storage/limits.md) - File size limits
-```
-
-**Be specific.** File names should describe content: `viewport-gate.md` not `utils.md`.
-
-**Update, do not append.** When patterns change, update existing docs rather than adding "v2" files. Use frontmatter to track when.
-
-**Write good change summaries.** Other apps will scan these to decide if the change is relevant to them.
+---
 
 ## Structure
 
 ```
-/core             Sequential setup (00-08), follow in order
-  /00-overview    Architecture, philosophy, agent workflow, EMERGENCY PROCEDURES
-  /01-setup       Project scaffolding, stack, React Compiler
-  /02-frontend    React, UI, viewport gate, layout, save pattern
-  /03-convex      Backend, schema, queries, dev-v-prod, migrations
-  /04-auth        better-auth setup
-  /05-storage     File handling, limits
-  /06-payments    Stripe integration
-  /07-analytics   Usage tracking
-  /08-hosting     Deployment
+/core                 Sequential setup (00-08)
+  /00-overview        Agent workflow, quickstart, checkpoints, hardening
+  /01-setup           Stack scaffolding
+  /02-frontend        React, UI, sessions
+  /03-convex          Backend, schema, queries
+  /04-auth            Better Auth setup + debug
+  /05-storage         File handling
+  /06-payments        Stripe
+  /07-analytics       PostHog
+  /08-hosting         Deployment
 
-/domains          App-specific patterns
-  /3d             Three.js, STL, meshes
-  /2d             Canvas, SVG, images
-
-/config           Registered apps and sync state
+/domains              App-specific patterns
+  /3d                 Three.js, STL, meshes
+  /2d                 Canvas, SVG
 ```
 
-## Agent Workflow (Summary)
-
-**Full details:** [core/00-overview/agent-workflow.md](core/00-overview/agent-workflow.md)
-
-```
-1. READ    → Fetch relevant docs from blueprint
-2. IMPLEMENT → Write code in target app  
-3. VERIFY  → Run build/lint, user tests manually
-4. CONFIRM → User says it works
-5. WRITE   → POST updates back to blueprint
-6. MARK    → POST to /api/apps/{name}/checked
-```
-
-**Never update the blueprint with untested code.**
-
-## Stack
-
-Vite + React 19 + React Compiler + TypeScript + Convex + shadcn + Stripe
+---
 
 ## Philosophy
 
 Maximum simplicity for solo dev. No auto-save, no undo, no mobile, no collaboration.
+
+---
+
+## Stack
+
+Vite + React 19 + React Compiler + TypeScript + Convex + shadcn + Stripe

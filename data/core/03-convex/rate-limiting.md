@@ -1,8 +1,8 @@
 ---
-last_updated: 2026-01-27
+last_updated: 2026-01-28
 updated_by: vector-projector
-change: "Added actual implementation patterns and rules"
-status: partial
+change: "Added backerVerify rule, updated Applied To table"
+status: tested
 ---
 
 # Rate Limiting
@@ -41,6 +41,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   passwordReset: { kind: "fixed window", rate: 3, period: HOUR },
   signUp: { kind: "fixed window", rate: 10, period: HOUR },
   signIn: { kind: "fixed window", rate: 20, period: MINUTE },
+  backerVerify: { kind: "fixed window", rate: 5, period: MINUTE },
 
   // APP MUTATIONS
   sessionCreate: { kind: "fixed window", rate: 10, period: MINUTE },
@@ -66,6 +67,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
 | Unauthenticated | IP | Only identifier available |
 | Authenticated | User ID | Don't punish shared IPs (offices, VPNs) |
 | Email operations | Target email | Prevent spam to one inbox |
+| Backer verification | Username | Prevent brute-forcing codes for specific user |
 
 ## Usage Pattern
 
@@ -75,9 +77,9 @@ import { rateLimiter } from "./rateLimiter";
 export const myMutation = mutation({
   args: { /* ... */ },
   handler: async (ctx, args) => {
-    // Check rate limit (throws on failure)
+    // Check rate limit
     const { ok, retryAfter } = await rateLimiter.limit(ctx, "ruleName", {
-      key: userId, // or ip, or email
+      key: userId, // or ip, email, username
     });
     if (!ok) {
       throw new Error(`Rate limit exceeded. Try again in ${Math.ceil(retryAfter! / 1000)} seconds.`);
@@ -93,6 +95,7 @@ export const myMutation = mutation({
 | Endpoint | File | Rule | Key |
 |----------|------|------|-----|
 | `ensureAppUser` | `convex/users.ts` | `sessionCreate` | Auth user ID |
+| `verifyBacker` | `convex/crowdfundingBackers.ts` | `backerVerify` | Username (lowercase) |
 
 ## Not Yet Applied
 
@@ -119,3 +122,4 @@ Should have: Privacy policy mentioning IP processing for security.
 
 - [schema.md](schema.md) - Database schema
 - [../04-auth/better-auth.md](../04-auth/better-auth.md) - Auth setup
+- [../04-auth/crowdfunding-mode.md](../04-auth/crowdfunding-mode.md) - Backer verification

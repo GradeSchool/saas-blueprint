@@ -1,28 +1,29 @@
 ---
-last_updated: 2026-01-27
+last_updated: 2026-01-29
 updated_by: vector-projector
-change: "Updated to reflect actual implementation - no grace period, correct field names"
+change: "Added frontmatter metadata, streamlined for setup-first reading"
 status: tested
+context_cost: 2KB
+type: setup
+requires: [core/04-auth/better-auth.md]
+unlocks: []
 ---
 
 # Single Session Enforcement
 
 Prevent users from running multiple simultaneous sessions.
 
-## Rules
+**Debug guide:** [../00-overview/hardening-patterns.md](../00-overview/hardening-patterns.md) - Session ID validation, duplicate tab detection patterns
 
-**Apply to everyone, no exceptions:**
+---
+
+## Rules
 
 - One session per user (across devices)
 - One tab per session (same browser)
 - Admins follow the same rules
 
-## Strategy
-
-Two-pronged approach:
-
-1. **Convex**: `activeSessionId` field on users table (cross-device)
-2. **BroadcastChannel**: Detect duplicate tabs (same browser)
+---
 
 ## Database Schema
 
@@ -35,144 +36,134 @@ users: defineTable({
 })
 ```
 
+---
+
 ## Server Implementation
 
+**convex/users.ts:**
+
 ```typescript
-// convex/users.ts
-export const ensureAppUser = mutation({
-  handler: async (ctx) => {
-    // ... get auth user, find/create app user ...
-    
-    // Generate new session ID (invalidates any previous)
-    const sessionId = crypto.randomUUID()
-    await ctx.db.patch(userId, {
-      activeSessionId: sessionId,
-      sessionStartedAt: Date.now(),
-    })
-    
-    return { sessionId, /* ... */ }
-  },
-})
+const SESSION_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const validateSession = query({
   args: { sessionId: v.string() },
   handler: async (ctx, { sessionId }) => {
-    const authUser = await authComponent.getAuthUser(ctx)
-    if (!authUser) return { valid: false, reason: 'not_authenticated' }
+    if (!SESSION_ID_REGEX.test(sessionId)) {
+      return { valid: false, reason: 'invalid_session_id' as const };
+    }
+    
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return { valid: false, reason: 'not_authenticated' as const };
+    }
+    if (!authUser) return { valid: false, reason: 'not_authenticated' as const };
     
     const appUser = await ctx.db.query('users')
       .withIndex('by_authUserId', q => q.eq('authUserId', authUser._id))
-      .unique()
+      .unique();
     
-    if (!appUser) return { valid: false, reason: 'no_app_user' }
+    if (!appUser) return { valid: false, reason: 'no_app_user' as const };
     
-    // Strict check - no grace period
     if (appUser.activeSessionId === sessionId) {
-      return { valid: true }
+      return { valid: true };
     }
     
-    return { valid: false, reason: 'session_invalidated' }
+    return { valid: false, reason: 'session_invalidated' as const };
   },
-})
+});
+
+export const ensureAppUser = mutation({
+  handler: async (ctx) => {
+    // ... get auth user, find/create app user ...
+    
+    const sessionId = crypto.randomUUID();
+    await ctx.db.patch(userId, {
+      activeSessionId: sessionId,
+      sessionStartedAt: Date.now(),
+    });
+    
+    return { sessionId, /* ... */ };
+  },
+});
 ```
+
+---
 
 ## Client Hook
 
+**src/hooks/useSession.ts:**
+
 ```typescript
-// src/hooks/useSession.ts
 export function useSession(isAuthenticated: boolean) {
-  const [sessionId, setSessionIdState] = useState<string | null>(() => {
-    return localStorage.getItem('vp_session_id')
-  })
-  const [isDuplicateTab, setIsDuplicateTab] = useState(false)
+  const [sessionId, setSessionIdState] = useState<string | null>(() => 
+    safeLocalGet(SESSION_KEY)
+  );
+  const [isDuplicateTab, setIsDuplicateTab] = useState(false);
+  const tabId = useRef(crypto.randomUUID());
+  const tabOpenedAt = useRef<number | null>(null);
   
-  // Validate session against server
   const sessionValidation = useQuery(
     api.users.validateSession,
     isAuthenticated && sessionId ? { sessionId } : 'skip'
-  )
+  );
   
-  // Compute kicked state
-  const wasKicked = sessionValidation !== undefined && 
-    !sessionValidation.valid && 
-    sessionValidation.reason === 'session_invalidated'
+  const isSessionValid = sessionValidation?.valid;
+  const isSessionIdInvalid = sessionValidation?.reason === 'invalid_session_id';
+  const effectiveSessionId = isSessionIdInvalid ? null : sessionId;
   
-  // BroadcastChannel for duplicate tab detection
+  const wasKicked = sessionValidation?.reason === 'session_invalidated';
+  
+  // Clear invalid session
   useEffect(() => {
-    if (!sessionId) return
+    if (isSessionIdInvalid) safeLocalRemove(SESSION_KEY);
+  }, [isSessionIdInvalid]);
+  
+  // BroadcastChannel duplicate detection
+  useEffect(() => {
+    if (!effectiveSessionId) return;
+    if (tabOpenedAt.current === null) tabOpenedAt.current = Date.now();
     
-    const channel = new BroadcastChannel('vp_tab_coordination')
-    const tabId = crypto.randomUUID()
+    const isDuplicateFor = (otherOpenedAt: number, otherTabId: string) => {
+      const currentOpenedAt = tabOpenedAt.current ?? 0;
+      if (otherOpenedAt < currentOpenedAt) return true;
+      if (otherOpenedAt > currentOpenedAt) return false;
+      return otherTabId.localeCompare(tabId.current) < 0;
+    };
     
+    const channel = new BroadcastChannel('vp_tab_coordination');
     channel.onmessage = (e) => {
-      if (e.data.type === 'TAB_CHECK' && e.data.tabId !== tabId) {
-        channel.postMessage({ type: 'TAB_EXISTS', tabId })
+      if (e.data.type === 'TAB_EXISTS' && isDuplicateFor(e.data.openedAt, e.data.tabId)) {
+        setIsDuplicateTab(true);
       }
-      if (e.data.type === 'TAB_EXISTS' && e.data.tabId !== tabId) {
-        setIsDuplicateTab(true)
-      }
-    }
+    };
     
     setTimeout(() => {
-      channel.postMessage({ type: 'TAB_CHECK', tabId })
-    }, 100)
+      channel.postMessage({ type: 'TAB_CHECK', tabId: tabId.current, openedAt: tabOpenedAt.current });
+    }, 100);
     
-    return () => channel.close()
-  }, [sessionId])
+    return () => channel.close();
+  }, [effectiveSessionId]);
   
-  return {
-    sessionId,
-    isSessionValid: sessionValidation?.valid,
-    isDuplicateTab,
-    wasKicked,
-    setSessionId: (id: string) => {
-      localStorage.setItem('vp_session_id', id)
-      setSessionIdState(id)
-    },
-    clearSession: () => {
-      localStorage.removeItem('vp_session_id')
-      setSessionIdState(null)
-    },
-  }
+  return { sessionId: effectiveSessionId, isSessionValid, isDuplicateTab, wasKicked, /* ... */ };
 }
 ```
+
+---
 
 ## App Integration
 
 ```tsx
-// App.tsx
-const { isDuplicateTab, wasKicked, setSessionId } = useSession(isAuthenticated)
+const { isDuplicateTab, wasKicked } = useSession(isAuthenticated)
 
-// Block duplicate tabs
-if (isDuplicateTab) {
-  return <DuplicateTabWarning />
-}
-
-// Block kicked sessions
-if (wasKicked) {
-  return <SessionEndedWarning onSignInAgain={clearKicked} />
-}
+if (isDuplicateTab) return <DuplicateTabWarning />
+if (wasKicked) return <SessionEndedWarning />
 ```
 
-## User Experience
-
-| Scenario | Behavior |
-|----------|----------|
-| Login on new device | Previous session kicked immediately |
-| Open duplicate tab | Warning shown, tab disabled |
-| Page refresh | Works (same sessionId in localStorage) |
-| Session kicked | Red warning: "You signed in on another device" |
-
-## Key Files
-
-| File | Purpose |
-|------|--------|
-| `convex/users.ts` | `ensureAppUser`, `validateSession` |
-| `convex/schema.ts` | `activeSessionId`, `sessionStartedAt` fields |
-| `src/hooks/useSession.ts` | Client-side session hook |
-| `src/App.tsx` | UI for kicked/duplicate states |
+---
 
 ## Related
 
-- [../04-auth/signup-signin-sessions-flow.md](../04-auth/signup-signin-sessions-flow.md) - Full auth flow
-- [../03-convex/schema.md](../03-convex/schema.md) - Schema definition
+- [auth-ui-state.md](auth-ui-state.md) - Auth loading states
+- [../00-overview/hardening-patterns.md](../00-overview/hardening-patterns.md) - Security patterns
