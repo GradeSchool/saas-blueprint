@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-01-29
+last_updated: 2026-01-31
 updated_by: vector-projector
-change: "Added frontmatter metadata - marked as reference type"
+change: "Added Opportunistic Cleanup pattern for expiring records"
 status: tested
-context_cost: 4KB
+context_cost: 6KB
 type: reference
 requires: []
 ---
@@ -11,6 +11,88 @@ requires: []
 # Hardening Patterns
 
 Lessons learned from security audits. **Reference doc - read when hardening, not during initial setup.**
+
+---
+
+## Content Security Policy (CSP)
+
+**Problem**: XSS attacks can execute arbitrary JavaScript, stealing tokens from localStorage.
+
+**Solution**: CSP headers restrict what resources can load, blocking injected scripts.
+
+```json
+// vercel.json
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.convex.site; connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://*.convex.site https://accounts.google.com; frame-src https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://*.convex.site https://accounts.google.com; upgrade-insecure-requests"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Key directives:**
+
+| Directive | Value | Purpose |
+|-----------|-------|--------|
+| `script-src` | `'self'` | Only scripts from your domain (blocks injected scripts) |
+| `connect-src` | Convex + Google | Whitelist API connections |
+| `frame-ancestors` | `'none'` | Prevent clickjacking |
+| `form-action` | Known endpoints | Restrict form submissions |
+
+**Additional security headers:**
+
+```json
+{ "key": "X-Content-Type-Options", "value": "nosniff" },
+{ "key": "X-Frame-Options", "value": "DENY" },
+{ "key": "X-XSS-Protection", "value": "1; mode=block" },
+{ "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+{ "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" }
+```
+
+**Note**: CSP only applies in production (Vercel). Vite dev mode needs looser settings for HMR.
+
+---
+
+## Opportunistic Cleanup (No Cron)
+
+**Problem**: Expiring records (pending uploads, tokens, etc.) accumulate from inactive users.
+
+**Solution**: Clean up ALL expired records on every related operation, not just the current user's.
+
+```typescript
+// BAD - only cleans current user's expired records
+const userRecords = await ctx.db
+  .query("pending_uploads")
+  .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+  .collect();
+for (const r of userRecords) {
+  if (r.expiresAt < now) await ctx.db.delete(r._id);
+}
+
+// GOOD - cleans ALL expired records
+const expired = await ctx.db
+  .query("pending_uploads")
+  .withIndex("by_expiresAt")
+  .filter((q) => q.lt(q.field("expiresAt"), now))
+  .collect();
+for (const r of expired) {
+  await ctx.db.delete(r._id);
+}
+```
+
+**Benefits:**
+- No cron job complexity
+- Inactive users' records get cleaned by active users
+- As long as someone uses the feature, cleanup happens
+
+**Requires:** Index on `expiresAt` field for efficient queries.
 
 ---
 

@@ -1,13 +1,13 @@
 ---
-last_updated: 2026-01-30
+last_updated: 2026-01-31
 updated_by: vector-projector
-change: "Fixed table formatting, added CDN security notes"
-status: draft
+change: "Added pending_uploads table for upload security"
+status: tested
 ---
 
 # Convex Data Structure
 
-Initial thinking on tables and fields for Vector Projector.
+Tables and fields for Vector Projector.
 
 ---
 
@@ -27,6 +27,7 @@ Initial thinking on tables and fields for Vector Projector.
 
 | Table | Scope | Limit |
 |-------|-------|-------|
+| `pending_uploads` | System (security) | Auto-cleanup |
 | `stl_files` | Per user + base samples | 100 per user |
 | `svg_files` | Per user + base samples | 250 per user |
 | `projects` | Per user | 100 per user |
@@ -85,6 +86,45 @@ Singleton for app-wide configuration.
 
 ---
 
+## pending_uploads (Security)
+
+Tracks blob ownership between upload and commit. Prevents blobId theft.
+
+**See:** `/core/05-storage/better-auth-upload-workaround.md`
+
+| Column | Type | Purpose |
+|--------|------|--------|
+| blobId | string | From convex-fs upload |
+| authUserId | string | Better Auth user ID who uploaded |
+| createdAt | number | Timestamp |
+| expiresAt | number | Auto-cleanup after this time |
+
+**Indexes:**
+- `by_blobId` - lookup when validating commit
+- `by_expiresAt` - cleanup expired records
+
+**Lifecycle:**
+1. Created when blob uploaded to `/upload` endpoint
+2. Deleted when `commitFile` consumes it (one-time use)
+3. Expired records cleaned up by scheduled job
+
+**TTL:** 1 hour (generous buffer for slow commits)
+
+**Schema:**
+
+```typescript
+pending_uploads: defineTable({
+  blobId: v.string(),
+  authUserId: v.string(),
+  createdAt: v.number(),
+  expiresAt: v.number(),
+})
+  .index("by_blobId", ["blobId"])
+  .index("by_expiresAt", ["expiresAt"]),
+```
+
+---
+
 ## Discovery Mode
 
 New users (anonymous, not signed in) can explore the app before signing up.
@@ -120,7 +160,7 @@ Admins can upload sample STL and SVG files for discovery mode.
 | Upload | Admin only, via admin panel |
 | Owner | The admin who uploaded (audit trail) |
 | Flag | `isBase: true` marks as sample content |
-| Path | `/base/stl/{fileId}.stl` or `/base/svg/{fileId}.svg` |
+| Path | `/base/stl/{uuid}.stl` or `/base/svg/{uuid}.svg` |
 | Visibility | Everyone, including anonymous |
 | UI placement | Separate "Samples" section, not mixed with user library |
 | Limits | Base files don't count against user quotas |
@@ -129,25 +169,34 @@ Admins can upload sample STL and SVG files for discovery mode.
 
 **Critical:** Never trust `isBase` flag from client. Always validate server-side.
 
+```typescript
+// In commitFile mutation:
+if (args.isBase) {
+  const adminRecord = await ctx.db
+    .query("admins")
+    .withIndex("by_email", (q) => q.eq("email", appUser.email))
+    .unique();
+  if (!adminRecord) {
+    throw new Error("Only admins can upload base samples");
+  }
+  // Generate base path
+  path = `/base/stl/${crypto.randomUUID()}.stl`;
+} else {
+  // Generate user path
+  path = `/users/${identity.subject}/stl/${crypto.randomUUID()}.stl`;
+}
 ```
-commitFile mutation:
-  1. Get user's email from auth
-  2. If client sends isBase: true:
-     a. Query admins table for user's email
-     b. If NOT in admins table → reject OR treat as regular user upload
-     c. If in admins table → allow /base/ path, set isBase: true
-  3. If isBase: false → normal user upload flow
-```
-
-**Why:** A malicious client could send `isBase: true` to bypass quota limits or upload inappropriate content as "official" samples.
 
 ### Authorization
 
-```
-downloadAuth:
-  if path.startsWith('/base/') → allow (public)
-  if path.startsWith(`/users/${identity.subject}/`) → allow (owner)
-  else → deny
+```typescript
+downloadAuth: async (ctx, _blobId, path) => {
+  if (path?.startsWith("/base/")) return true; // Public
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return false;
+  if (path?.startsWith(`/users/${identity.subject}/`)) return true; // Owner
+  return false;
+}
 ```
 
 ### Download Security
@@ -170,21 +219,41 @@ This is actually better - stops abuse at the CDN edge before it reaches Convex.
 
 User's library of 3D models, plus admin-uploaded base samples.
 
-| Column | Purpose |
-|--------|--------|
-| userId | Pointer to owner (user or admin) |
-| path | Convex-fs path |
-| fileName | Raw filename for reference |
-| name | User-defined display name |
-| fileSize | Bytes, for quota tracking |
-| isBase | Boolean, true for admin samples |
-| createdAt | Timestamp |
+| Column | Type | Purpose |
+|--------|------|--------|
+| userId | id → users | Pointer to owner (user or admin) |
+| path | string | Convex-fs path (generated server-side) |
+| fileName | string | Original filename for reference |
+| name | string | User-defined display name |
+| fileSize | number | Bytes, for quota tracking |
+| isBase | boolean | True for admin samples |
+| createdAt | number | Timestamp |
+
+**Indexes:**
+- `by_userId` - list user's files
+- `by_isBase` - list base samples for discovery mode
 
 **Path convention:**
-- User files: `/users/{identity.subject}/stl/{fileId}.stl`
-- Base files: `/base/stl/{fileId}.stl`
+- User files: `/users/{identity.subject}/stl/{uuid}.stl`
+- Base files: `/base/stl/{uuid}.stl`
 
 **Limit:** 100 per user (base files don't count).
+
+**Schema:**
+
+```typescript
+stl_files: defineTable({
+  userId: v.id("users"),
+  path: v.string(),
+  fileName: v.string(),
+  name: v.string(),
+  fileSize: v.number(),
+  isBase: v.boolean(),
+  createdAt: v.number(),
+})
+  .index("by_userId", ["userId"])
+  .index("by_isBase", ["isBase"]),
+```
 
 ---
 
@@ -192,21 +261,41 @@ User's library of 3D models, plus admin-uploaded base samples.
 
 User's library of vector artwork, plus admin-uploaded base samples.
 
-| Column | Purpose |
-|--------|--------|
-| userId | Pointer to owner (user or admin) |
-| path | Convex-fs path |
-| fileName | Raw filename for reference |
-| name | User-defined display name |
-| fileSize | Bytes, for quota tracking |
-| isBase | Boolean, true for admin samples |
-| createdAt | Timestamp |
+| Column | Type | Purpose |
+|--------|------|--------|
+| userId | id → users | Pointer to owner (user or admin) |
+| path | string | Convex-fs path |
+| fileName | string | Original filename for reference |
+| name | string | User-defined display name |
+| fileSize | number | Bytes, for quota tracking |
+| isBase | boolean | True for admin samples |
+| createdAt | number | Timestamp |
+
+**Indexes:**
+- `by_userId` - list user's files
+- `by_isBase` - list base samples
 
 **Path convention:**
-- User files: `/users/{identity.subject}/svg/{fileId}.svg`
-- Base files: `/base/svg/{fileId}.svg`
+- User files: `/users/{identity.subject}/svg/{uuid}.svg`
+- Base files: `/base/svg/{uuid}.svg`
 
 **Limit:** 250 per user (base files don't count).
+
+**Schema:**
+
+```typescript
+svg_files: defineTable({
+  userId: v.id("users"),
+  path: v.string(),
+  fileName: v.string(),
+  name: v.string(),
+  fileSize: v.number(),
+  isBase: v.boolean(),
+  createdAt: v.number(),
+})
+  .index("by_userId", ["userId"])
+  .index("by_isBase", ["isBase"]),
+```
 
 ---
 
@@ -216,15 +305,15 @@ Where the magic happens. Each project combines one STL with extrusion planes.
 
 **Only authenticated users can have projects.**
 
-| Column | Purpose |
-|--------|--------|
-| userId | Pointer to owner |
-| name | Project name |
-| createdAt | Timestamp |
-| updatedAt | Timestamp |
-| stlFileId | Pointer to stl_files entry (can be user file OR base file) |
-| stlOrientation | Rotation + zOffset |
-| extrusionPlanes | Array of plane entries (max 10) |
+| Column | Type | Purpose |
+|--------|------|--------|
+| userId | id → users | Pointer to owner |
+| name | string | Project name |
+| createdAt | number | Timestamp |
+| updatedAt | number | Timestamp |
+| stlFileId | optional id → stl_files | Can be user file OR base file |
+| stlOrientation | optional object | Rotation + zOffset |
+| extrusionPlanes | array | Max 10 planes |
 
 **Limit:** 100 per user.
 
@@ -293,7 +382,7 @@ Admins need UI to:
 - View/delete existing samples
 - See which admin uploaded each sample
 
-This is separate from user file management.
+**Status:** STL upload implemented in `src/components/admin/sections/BaseStlSection.tsx`
 
 ---
 
@@ -307,10 +396,21 @@ This is separate from user file management.
 
 ---
 
+## Implementation Status
+
+| Table | Status |
+|-------|--------|
+| pending_uploads | Done |
+| stl_files | Done (with mutations) |
+| svg_files | Schema done, mutations not started |
+| projects | Schema done, mutations not started |
+
+---
+
 ## Next Steps
 
-1. Finalize field structures
-2. Add any missing standard fields
-3. Write Convex schema
-4. Build admin panel for base content upload
-5. Configure Bunny Shield for download security
+1. Implement SVG upload (same pattern as STL)
+2. Implement user file upload (non-admin)
+3. Add quota enforcement
+4. Add cleanup scheduled job for pending_uploads
+5. Start on projects mutations

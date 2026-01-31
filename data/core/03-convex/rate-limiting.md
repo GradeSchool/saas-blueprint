@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-28
+last_updated: 2026-01-31
 updated_by: vector-projector
-change: "Added backerVerify rule, updated Applied To table"
+change: "Added HTTP endpoint rate limiting pattern, updated fileUpload rate to 10/hour"
 status: tested
 ---
 
@@ -49,7 +49,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
 
   // USER CONTENT (token bucket for burst tolerance)
   projectCreate: { kind: "token bucket", rate: 20, period: HOUR, capacity: 5 },
-  fileUpload: { kind: "token bucket", rate: 50, period: HOUR, capacity: 10 },
+  fileUpload: { kind: "token bucket", rate: 10, period: HOUR, capacity: 5 },
 });
 ```
 
@@ -71,24 +71,81 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
 
 ## Usage Pattern
 
+### In Mutations
+
 ```typescript
 import { rateLimiter } from "./rateLimiter";
 
 export const myMutation = mutation({
   args: { /* ... */ },
   handler: async (ctx, args) => {
-    // Check rate limit
     const { ok, retryAfter } = await rateLimiter.limit(ctx, "ruleName", {
-      key: userId, // or ip, email, username
+      key: userId,
     });
     if (!ok) {
-      throw new Error(`Rate limit exceeded. Try again in ${Math.ceil(retryAfter! / 1000)} seconds.`);
+      throw new Error(`Rate limit exceeded. Try again in ${Math.ceil(retryAfter! / 1000)}s`);
     }
-
     // ... rest of mutation
   },
 });
 ```
+
+### In HTTP Actions
+
+HTTP actions can't call `rateLimiter.limit()` directly. Use an internal mutation:
+
+```typescript
+// convex/uploads.ts
+export const checkUploadRateLimit = internalMutation({
+  args: { authUserId: v.string() },
+  handler: async (ctx, args) => {
+    const appUser = await ctx.db
+      .query("users")
+      .withIndex("by_authUserId", (q) => q.eq("authUserId", args.authUserId))
+      .unique();
+
+    if (!appUser) {
+      return { ok: true }; // User not created yet, allow
+    }
+
+    const { ok, retryAfter } = await rateLimiter.limit(ctx, "fileUpload", {
+      key: appUser._id,
+    });
+
+    if (!ok) {
+      return { ok: false, retryAfter: Math.ceil(retryAfter! / 1000) };
+    }
+    return { ok: true };
+  },
+});
+```
+
+```typescript
+// convex/http.ts
+uploadCors.route({
+  path: "/upload",
+  method: "POST",
+  handler: httpActionGeneric(async (ctx, req) => {
+    // ... auth checks ...
+
+    // Rate limit BEFORE writing blob
+    const rateLimit = await ctx.runMutation(
+      internal.uploads.checkUploadRateLimit,
+      { authUserId: session.user.id }
+    );
+    if (!rateLimit.ok) {
+      return new Response(
+        JSON.stringify({ error: `Rate limit exceeded. Try again in ${rateLimit.retryAfter}s` }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // ... proceed with upload ...
+  }),
+});
+```
+
+**Key insight:** Rate limit BEFORE expensive operations (writing blobs, sending emails). This prevents abuse even if the operation would fail later.
 
 ## Applied To
 
@@ -96,6 +153,20 @@ export const myMutation = mutation({
 |----------|------|------|-----|
 | `ensureAppUser` | `convex/users.ts` | `sessionCreate` | Auth user ID |
 | `verifyBacker` | `convex/crowdfundingBackers.ts` | `backerVerify` | Username (lowercase) |
+| `/upload` HTTP | `convex/http.ts` | `fileUpload` | App user ID |
+
+## Avoiding Double-Counting
+
+If you have a two-step flow (e.g., upload blob → commit file), rate limit at the FIRST step only:
+
+```
+Upload (rate limited) → Commit (no rate limit)
+```
+
+Why:
+- Can't commit without uploading first
+- Rate limiting both = 2 tokens per operation = halved effective rate
+- Upload is where storage cost occurs, so that's where to limit
 
 ## Not Yet Applied
 

@@ -1,15 +1,52 @@
 ---
-last_updated: 2026-01-29
+last_updated: 2026-01-31
 updated_by: vector-projector
-change: "Added detailed notes for each doc page"
+change: "Added GitHub repo link, clarified upload/commit architecture"
 status: tested
 ---
 
 # Convex-FS Docs
 
-Reference to all convex-fs documentation pages with summaries. No API reference yet (coming soon).
+Reference to all convex-fs documentation pages with summaries.
 
 **Root:** https://convexfs.dev/
+
+**GitHub:** https://github.com/jamwt/convex-fs
+
+---
+
+## Key Architecture Insight
+
+convex-fs intentionally separates upload from commit:
+
+| Step | What Happens | Where |
+|------|--------------|-------|
+| Upload | Bytes go to bunny.net storage, get blobId | HTTP endpoint |
+| Commit | Associate blobId with a path in your app | Your mutation |
+
+**Why separate?**
+- Upload is data plane (large bytes to CDN)
+- Commit is control plane (metadata in Convex DB)
+- Allows retry/recovery if commit fails
+- Flexibility in path naming after upload
+
+**Built-in GC:**
+- convex-fs tracks pending uploads internally
+- Uncommitted uploads auto-expire after 4 hours
+- GC job deletes expired blobs from storage
+- You don't need your own cleanup for abandoned uploads
+
+**What convex-fs does NOT provide:**
+- Rate limiting (add in your HTTP action or uploadAuth callback)
+- User ownership tracking (the component doesn't know about users)
+- File size limits (enforce in your HTTP action)
+
+**Your responsibility:**
+- Validate user in `uploadAuth` callback
+- Add rate limiting / abuse prevention
+- Track user ownership if needed (for multi-user apps)
+- Enforce file size limits
+- Add business logic in your `commitFile` mutation
 
 ---
 
@@ -26,6 +63,8 @@ Reference to all convex-fs documentation pages with summaries. No API reference 
 **Setup Bunny:** Step-by-step bunny.net account setup. Storage zone, pull zone, security settings, gathering env vars. Region codes: de (default), ny, sg, uk, la, se, br, jh, syd.
 
 **Example App:** Clone-and-run demo. Shows npm run dev runs both Vite and Convex. Dashboard-first env var configuration.
+
+**Example Code:** See https://github.com/jamwt/convex-fs/tree/main/example for a working reference implementation.
 
 ---
 
@@ -148,4 +187,14 @@ Soft delete = immediate record removal, blob stays until grace period.
 | `fs.list(prefix)` | Query | List files |
 | `fs.delete(path)` | Mutation | Soft delete |
 | `fs.commitFiles([...])` | Mutation | Commit uploaded blobs |
+| `fs.writeBlob(data, type)` | Action | Upload blob directly |
 | `buildDownloadUrl(...)` | Helper | Create signed URL |
+
+### Internal Tables (in convex-fs component)
+
+| Table | Purpose |
+|-------|--------|
+| `uploads` | Pending uploads awaiting commit (4h TTL) |
+| `blobs` | Committed blobs with refCount |
+| `files` | Path → blobId mapping |
+| `config` | Stored config for background GC |

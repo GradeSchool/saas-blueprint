@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-30
+last_updated: 2026-01-31
 updated_by: vector-projector
-change: "Added convex-fs reference link"
+change: "Clarified all env vars except BUNNY_REGION are required"
 status: tested
 ---
 
@@ -57,7 +57,18 @@ Step-by-step guide for setting up bunny.net storage, CDN, and security for a new
 
 ---
 
-## 4. Configure Hotlink Protection
+## 4. Enable Token Authentication
+
+**CRITICAL:** This enables signed URLs. Without it, files may be publicly accessible.
+
+1. Go to **CDN** → select your pull zone
+2. Go to **Security** → **Token Authentication**
+3. Enable token authentication
+4. Copy the token key (you'll need it for `BUNNY_TOKEN_KEY`)
+
+---
+
+## 5. Configure Hotlink Protection
 
 Prevents other sites from embedding your files.
 
@@ -70,7 +81,7 @@ Prevents other sites from embedding your files.
 
 ---
 
-## 5. Enable Bunny Shield
+## 6. Enable Bunny Shield
 
 Provides WAF, rate limiting, and DDoS protection.
 
@@ -81,7 +92,7 @@ Provides WAF, rate limiting, and DDoS protection.
 
 ---
 
-## 6. Create Rate Limit Rule
+## 7. Create Rate Limit Rule
 
 Protects against download abuse.
 
@@ -131,17 +142,19 @@ Exceeding the limit blocks the IP for 1 minute.
 
 ---
 
-## 7. Gather Environment Variables
+## 8. Gather Environment Variables
 
 Collect these values for Convex dashboard:
 
-| Variable | Where to Find |
-|----------|---------------|
-| `BUNNY_STORAGE_ZONE` | Storage zone name (e.g., `vector-projector`) |
-| `BUNNY_CDN_HOSTNAME` | Pull zone → Hostnames (e.g., `https://vector-projector-cdn.b-cdn.net`) |
-| `BUNNY_TOKEN_KEY` | Pull zone → Security → Token Authentication |
-| `BUNNY_API_KEY` | Storage zone → FTP & API Access → Password (not read-only) |
-| `BUNNY_REGION` | Region code if not Frankfurt (see below) |
+| Variable | Required | Where to Find |
+|----------|----------|---------------|
+| `BUNNY_API_KEY` | **Yes** | Storage zone → FTP & API Access → Password (not read-only) |
+| `BUNNY_STORAGE_ZONE` | **Yes** | Storage zone name (e.g., `vector-projector`) |
+| `BUNNY_CDN_HOSTNAME` | **Yes** | Pull zone → Hostnames (e.g., `https://vector-projector-cdn.b-cdn.net`) |
+| `BUNNY_TOKEN_KEY` | **Yes** | Pull zone → Security → Token Authentication |
+| `BUNNY_REGION` | No | Only if NOT using Frankfurt (see codes below) |
+
+**Important:** All variables except `BUNNY_REGION` are required. Deployment will fail with a clear error if any are missing. This prevents accidentally running with insecure configuration.
 
 ### Region Codes
 
@@ -159,18 +172,53 @@ Collect these values for Convex dashboard:
 
 ---
 
-## 8. Add to Convex Dashboard
+## 9. Add to Convex Dashboard
 
 1. Go to Convex Dashboard → your project
 2. Go to **Settings** → **Environment Variables**
 3. Add each variable:
 
 ```
+BUNNY_API_KEY=(from FTP & API access)
 BUNNY_STORAGE_ZONE=vector-projector
 BUNNY_CDN_HOSTNAME=https://vector-projector-cdn.b-cdn.net
 BUNNY_TOKEN_KEY=(from token auth screen)
-BUNNY_API_KEY=(from FTP & API access)
 BUNNY_REGION=ny
+```
+
+---
+
+## 10. Configure convex/fs.ts
+
+All required env vars use `requireEnv()` to fail fast if missing:
+
+```typescript
+import { ConvexFS } from "convex-fs";
+import { components } from "./_generated/api";
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}. ` +
+      `Set it in Convex Dashboard > Settings > Environment Variables.`
+    );
+  }
+  return value;
+}
+
+export const fs = new ConvexFS(components.fs, {
+  storage: {
+    type: "bunny",
+    apiKey: requireEnv("BUNNY_API_KEY"),
+    storageZoneName: requireEnv("BUNNY_STORAGE_ZONE"),
+    region: process.env.BUNNY_REGION, // Optional, defaults to Frankfurt
+    cdnHostname: requireEnv("BUNNY_CDN_HOSTNAME"),
+    tokenKey: requireEnv("BUNNY_TOKEN_KEY"),
+  },
+  downloadUrlTtl: 300,      // 5 minutes
+  blobGracePeriod: 86400,   // 24 hours
+});
 ```
 
 ---
@@ -187,6 +235,7 @@ Completed setup for vector-projector:
 | Main Region | New York (NY) |
 | Replication | Los Angeles (LA) |
 | Force SSL | Enabled |
+| Token Auth | Enabled |
 | Bunny Shield | Basic (Free) |
 | Rate Limit | 100 req/10s per IP on `/fs` |
 | Hotlink Protection | vectorprojector.weheart.art, localhost |
@@ -199,8 +248,10 @@ Completed setup for vector-projector:
 - [ ] Add replication regions
 - [ ] Create pull zone (`{app}-cdn`)
 - [ ] Enable Force SSL
+- [ ] **Enable Token Authentication**
 - [ ] Configure allowed referrers (hotlink protection)
 - [ ] Enable Bunny Shield (Basic/Free)
 - [ ] Create rate limit rule for `/fs`
 - [ ] Gather all env vars
 - [ ] Add env vars to Convex dashboard
+- [ ] Verify deployment succeeds (all required vars present)

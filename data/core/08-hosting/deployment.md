@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-28
+last_updated: 2026-01-31
 updated_by: vector-projector
-change: "Added account access info"
+change: "Added security headers section for vercel.json"
 ---
 
 # Deployment
@@ -33,6 +33,33 @@ Make sure you're logged into Google with this account before accessing Vercel.
 | Netlify | Similar to Vercel | Similar trade-offs |
 
 **Current choice:** Vercel
+
+## Security Headers (vercel.json)
+
+Create `vercel.json` at project root with security headers. These protect against XSS, clickjacking, and other attacks.
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "..." },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" }
+      ]
+    }
+  ]
+}
+```
+
+**See:** [hardening-patterns.md](../00-overview/hardening-patterns.md) for full CSP configuration.
+
+**Note:** Headers only apply in production. Vite dev mode doesn't use vercel.json.
 
 ## Convex Backend
 

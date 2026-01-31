@@ -1,8 +1,8 @@
 ---
-last_updated: 2026-01-29
+last_updated: 2026-01-31
 updated_by: vector-projector
-change: "Clarified multi-app strategy: one account, zone per app"
-status: draft
+change: "Added Better Auth workaround reference, marked Vector Projector setup complete"
+status: tested
 ---
 
 # Convex-FS Overview
@@ -27,7 +27,7 @@ Convex-FS is a Convex component that provides filesystem-like operations backed 
 ## Why Use It?
 
 | Feature | Benefit |
-|---------|---------|
+|---------|--------|
 | Path-based organization | Familiar filesystem mental model |
 | Global CDN delivery | Fast downloads worldwide via bunny.net edge |
 | Signed URLs | Secure, time-limited access tied to app auth |
@@ -47,6 +47,21 @@ Convex-FS is a Convex component that provides filesystem-like operations backed 
 5. User downloads directly from bunny.net CDN (global edge)
 
 Blobs are reference-counted. Multiple paths can point to same blob. When last reference is deleted, blob is cleaned up.
+
+---
+
+## Critical: Better Auth Cross-Domain
+
+**If using Better Auth with cross-domain plugin, the standard convex-fs upload flow does NOT work.**
+
+**See:** `better-auth-upload-workaround.md` in this directory.
+
+**Summary of the problem:**
+1. Better Auth cross-domain stores auth in localStorage, not cookies
+2. convex-fs hardcodes `Access-Control-Allow-Origin: *` (incompatible with credentials)
+3. `ctx.auth.getUserIdentity()` returns null with Better Auth
+
+**Solution:** Custom `/upload` endpoint using `corsRouter` from `convex-helpers`. The workaround doc has full implementation.
 
 ---
 
@@ -74,6 +89,8 @@ Blobs are reference-counted. Multiple paths can point to same blob. When last re
 ```
 /users/{userId}/stl/{fileId}.stl
 /users/{userId}/svg/{fileId}.svg
+/base/stl/{fileId}.stl
+/base/svg/{fileId}.svg
 ```
 
 ---
@@ -153,7 +170,7 @@ Register at bunny.net (free to start).
 
 ---
 
-## Vector Projector Setup
+## Vector Projector Setup (Complete)
 
 **Storage Zone:**
 - Name: `vector-projector`
@@ -165,6 +182,9 @@ Register at bunny.net (free to start).
 - Name: `vector-projector-cdn`
 - Tier: Standard
 - Force SSL: Enabled
+- Bunny Shield: Basic (Free)
+- Rate limiting: 100 req/10s per IP
+- Hotlink protection: vectorprojector.weheart.art, localhost
 
 **Environment Variables (Convex Dashboard):**
 ```
@@ -175,13 +195,40 @@ BUNNY_API_KEY=(from FTP & API access)
 BUNNY_REGION=ny
 ```
 
+**Implementation Status:**
+- [x] Bunny.net zone created
+- [x] Env vars configured
+- [x] convex-fs component registered
+- [x] Custom /upload endpoint (Better Auth workaround)
+- [x] Download routes with auth
+- [x] Pending uploads tracking (security)
+- [x] STL file upload/commit/delete
+- [x] Admin panel for base samples
+- [x] User discovery mode UI
+
 ---
 
-## Next Steps
+## Related Docs in This Directory
 
-1. ~~Set up bunny.net account~~ Done
-2. ~~Create vector-projector zone~~ Done
-3. Add convex-fs component to vector-projector
-4. Configure env vars in Convex dashboard
-5. Define path conventions within app
-6. Document file limits per app (separate doc)
+| Doc | Purpose |
+|-----|--------|
+| `bunny-setup.md` | Detailed bunny.net configuration steps |
+| `convex-fs-docs.md` | Reference to all convex-fs documentation pages |
+| `better-auth-upload-workaround.md` | CRITICAL - how to make uploads work with Better Auth |
+
+---
+
+## New App Checklist
+
+1. Create storage zone in bunny.net (`{app-name}`)
+2. Create pull zone (`{app-name}-cdn`)
+3. Enable Force SSL, Bunny Shield, rate limiting, hotlink protection
+4. Add env vars to Convex dashboard
+5. Install convex-fs and convex-helpers
+6. Check if using Better Auth cross-domain:
+   - **Yes:** Follow `better-auth-upload-workaround.md`
+   - **No:** Use standard convex-fs registerRoutes for uploads
+7. Configure downloadAuth callback
+8. Define path conventions
+9. Create file tables (stl_files, svg_files, etc.)
+10. Create pending_uploads table (for security)
