@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-31
+last_updated: 2026-02-01
 updated_by: vector-projector
-change: "Initial creation - STL upload validation flow"
+change: "Added max file size (2 MB) at top, updated error states"
 status: planned
 ---
 
@@ -10,6 +10,16 @@ status: planned
 Client-side validation and upload flow for STL files.
 
 **Status:** Planned. Upload infrastructure exists, validation not yet implemented.
+
+---
+
+## Constraints
+
+| Constraint | Value | Notes |
+|------------|-------|-------|
+| **Max file size** | **2 MB** | Enforced client-side before upload |
+| Max per user | 100 files | Not counting base samples |
+| Validation | three.js STLLoader | Parse before allowing upload |
 
 ---
 
@@ -28,6 +38,8 @@ Validate STL files **in the browser** before allowing upload. This ensures:
 
 ```
 User selects file
+       ↓
+Check file size (reject if > 2 MB)
        ↓
 Read file as ArrayBuffer
        ↓
@@ -71,9 +83,16 @@ Already in use for 3D rendering. Use same loader for validation.
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader'
 import * as THREE from 'three'
 
+const MAX_STL_SIZE = 2 * 1024 * 1024 // 2 MB
+
 const loader = new STLLoader()
 
 async function validateStl(file: File): Promise<StlValidationResult> {
+  // Check size first
+  if (file.size > MAX_STL_SIZE) {
+    return { valid: false, error: 'File exceeds 2 MB limit' }
+  }
+
   return new Promise((resolve) => {
     const reader = new FileReader()
     
@@ -126,7 +145,7 @@ After validation, show user a report:
 | Field | Source | Example |
 |-------|--------|--------|
 | File name | Original file | `bracket.stl` |
-| File size | Actual bytes | `2.4 MB` |
+| File size | Actual bytes | `1.2 MB` |
 | Triangles | Parsed geometry | `12,847` |
 | Dimensions | Bounding box | `45 × 30 × 12 mm` |
 | Format | Detection | `Binary STL` |
@@ -197,58 +216,6 @@ function generateThumbnail(
 
 ---
 
-## Upload Flow (With Validation)
-
-```typescript
-async function handleStlUpload(file: File) {
-  // Step 1: Validate
-  setStatus('Validating...')
-  const validation = await validateStl(file)
-  
-  if (!validation.valid) {
-    setError(validation.error)
-    return
-  }
-  
-  // Step 2: Generate thumbnail
-  setStatus('Generating preview...')
-  const thumbnailBlob = await generateThumbnail(validation.geometry!)
-  
-  // Step 3: Show preview, wait for user confirmation
-  setPreview({ validation, thumbnailBlob })
-  // User clicks "Upload" button...
-}
-
-async function confirmUpload() {
-  const { validation, thumbnailBlob } = preview
-  
-  // Step 4: Upload STL
-  setStatus('Uploading STL...')
-  const stlBlobId = await uploadFile(file)
-  
-  // Step 5: Upload thumbnail
-  setStatus('Uploading thumbnail...')
-  const thumbnailBlobId = await uploadFile(thumbnailBlob)
-  
-  // Step 6: Commit with validated metadata
-  setStatus('Saving...')
-  await commitStlFile({
-    blobId: stlBlobId,
-    thumbnailBlobId,
-    fileName: file.name,
-    name: displayName,
-    fileSize: validation.fileSize,      // From actual file
-    triangleCount: validation.triangleCount, // From parse
-    dimensions: validation.dimensions,   // From parse
-    isBase: false,
-  })
-  
-  setStatus('Done!')
-}
-```
-
----
-
 ## Schema Changes (Future)
 
 `stl_files` table will need additional fields:
@@ -291,9 +258,9 @@ Thumbnails stored alongside STL files:
 
 | Error | User Message | Cause |
 |-------|-------------|-------|
+| File too large | "File exceeds 2 MB limit" | Check before reading file |
 | Parse failure | "This doesn't appear to be a valid STL file" | Corrupted, wrong format, renamed file |
 | Empty geometry | "This STL file contains no geometry" | Valid header but no triangles |
-| File too large | "File exceeds 50 MB limit" | Before validation even starts |
 | Read error | "Could not read file" | Permission issue, file locked |
 
 ---
@@ -332,62 +299,6 @@ function useStlValidator() {
 }
 ```
 
-### StlUploadPreview Component
-
-Shows validation results before upload:
-
-```
-┌─────────────────────────────────────┐
-│  [Thumbnail]    bracket.stl         │
-│                                     │
-│                 File size: 2.4 MB   │
-│                 Triangles: 12,847   │
-│                 Dimensions:         │
-│                 45 × 30 × 12 mm     │
-│                                     │
-│  Display name: [_______________]    │
-│                                     │
-│  [Cancel]              [Upload]     │
-└─────────────────────────────────────┘
-```
-
----
-
-## SVG Validation (Similar Pattern)
-
-SVG files follow same pattern but use svgo for validation/sanitization:
-
-```typescript
-import { optimize } from 'svgo/browser'
-
-async function validateSvg(file: File): Promise<SvgValidationResult> {
-  const text = await file.text()
-  
-  try {
-    const result = optimize(text, {
-      plugins: [
-        'removeScriptElement',      // Security: remove scripts
-        'removeXlink',              // Security: remove external refs
-        // ... other optimization plugins
-      ]
-    })
-    
-    return {
-      valid: true,
-      sanitizedSvg: result.data,
-      fileSize: new Blob([result.data]).size,
-    }
-  } catch (e) {
-    return {
-      valid: false,
-      error: 'Not a valid SVG file',
-    }
-  }
-}
-```
-
-**Important:** For SVG, upload the **sanitized** version, not the original. This removes potential XSS vectors.
-
 ---
 
 ## Implementation Priority
@@ -397,13 +308,12 @@ async function validateSvg(file: File): Promise<SvgValidationResult> {
 3. **StlUploadPreview component** - UI for validation results
 4. **Schema migration** - Add new fields
 5. **commitFile update** - Accept validated metadata + thumbnail
-6. **SVG validation** - Same pattern with svgo
 
 ---
 
 ## Related Docs
 
 - `/domains/vectorprojector/file-storage.md` - Storage infrastructure
+- `/domains/vectorprojector/discovery-mode.md` - Base samples for anonymous users
 - `/core/05-storage/convex-fs.md` - File storage backend
 - [three.js STLLoader docs](https://threejs.org/docs/#examples/en/loaders/STLLoader)
-- [svgo browser usage](https://svgo.dev/docs/usage/browser/)

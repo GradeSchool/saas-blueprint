@@ -1,19 +1,19 @@
 ---
-last_updated: 2026-01-31
+last_updated: 2026-02-01
 updated_by: vector-projector
-change: "Updated opportunistic cleanup - now cleans ALL expired records, not just current user"
+change: "Made more general, moved file-type specifics to dedicated docs"
 status: tested
 ---
 
 # File Storage
 
-Implementation of file storage in Vector Projector using convex-fs with bunny.net.
+File storage infrastructure for Vector Projector using convex-fs with bunny.net.
 
-**Status:** Implemented and tested for STL files. SVG follows same pattern.
+**Status:** Implemented and tested.
 
 ---
 
-## Client-Side Validation (Future)
+## Client-Side Validation
 
 **Important:** Files must be validated in the browser BEFORE upload is allowed.
 
@@ -28,7 +28,9 @@ Implementation of file storage in Vector Projector using convex-fs with bunny.ne
 - Provides immediate user feedback
 - Extracts real metadata (triangle count, dimensions) instead of trusting client
 
-**See:** `/domains/vectorprojector/stl-upload.md` for full STL validation flow.
+**See type-specific docs:**
+- `/domains/vectorprojector/stl-upload.md` - STL validation and limits
+- SVG validation doc (planned)
 
 ---
 
@@ -36,7 +38,7 @@ Implementation of file storage in Vector Projector using convex-fs with bunny.ne
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Single file upload | Done | STL files working |
+| Single file upload | Done | Working for STL and SVG |
 | Authenticated uploads | Done | Better Auth cross-domain workaround |
 | File commit | Done | With ownership validation |
 | File delete | Done | User files + admin base files |
@@ -47,7 +49,7 @@ Implementation of file storage in Vector Projector using convex-fs with bunny.ne
 | Path injection prevention | Done | Server-side path generation |
 | One-upload-at-a-time | Done | Prevents upload spam |
 | Expired record cleanup | Done | Opportunistic on every upload |
-| Client-side validation | Not started | three.js for STL, svgo for SVG |
+| Client-side validation | Planned | three.js for STL, svgo for SVG |
 
 ---
 
@@ -69,23 +71,14 @@ Custom `/upload` endpoint using `corsRouter` from `convex-helpers`. Full details
 
 ---
 
-## File Types
-
-| Type | Extension | Max Size | Per-User Limit |
-|------|-----------|----------|----------------|
-| STL | `.stl` | 50 MB | 100 files |
-| SVG | `.svg` | 20 KB | 250 files |
-
-**Note:** Base samples (admin uploads) don't count against user limits.
-
----
-
 ## Two Content Types
 
 | Type | Uploaded by | Path prefix | Visible to | Purpose |
 |------|-------------|-------------|------------|--------|
 | User files | Users | `/users/{subject}/` | Owner only | Personal library |
 | Base samples | Admins | `/base/` | Everyone | Discovery mode |
+
+**See:** `/domains/vectorprojector/discovery-mode.md` for base sample details.
 
 ---
 
@@ -100,7 +93,8 @@ Custom `/upload` endpoint using `corsRouter` from `convex-helpers`. Full details
 | `convex/http.ts` | Custom /upload endpoint + convex-fs download routes |
 | `convex/uploads.ts` | Pending upload tracking + rate limit + cleanup |
 | `convex/stlFiles.ts` | STL file mutations with security checks |
-| `convex/schema.ts` | pending_uploads + stl_files tables |
+| `convex/svgFiles.ts` | SVG file mutations with security checks |
+| `convex/schema.ts` | pending_uploads + file tables |
 
 ### Environment Variables (Convex Dashboard)
 
@@ -120,7 +114,7 @@ BUNNY_REGION=ny
 
 ```
 1. Client: User selects file
-2. Client: Validate with STLLoader (future - parse, check structure)
+2. Client: Validate file type (STL: three.js, SVG: svgo) [planned]
 3. Client: If invalid → show error, stop
 4. Client: authClient.getCookie() → get Better Auth token
 5. Client: POST /upload with X-Better-Auth-Cookie header + file body
@@ -136,7 +130,7 @@ BUNNY_REGION=ny
 13. Server: consumePendingUpload → verify ownership
 14. Server: Generate path SERVER-SIDE (never trust client)
 15. Server: fs.commitFiles([{ path, blobId }])
-16. Server: Insert stl_files record
+16. Server: Insert file record
 ```
 
 **Key:** Rate limiting at step 8, cleanup at step 10, both BEFORE returning blobId.
@@ -144,7 +138,7 @@ BUNNY_REGION=ny
 ### Download Flow
 
 ```
-1. Client: Has file path from stl_files record
+1. Client: Has file path from file record
 2. Client: Constructs URL: ${CONVEX_SITE_URL}/fs${path}
 3. Server: downloadAuth callback checks:
    - /base/* → allow (public)
@@ -202,11 +196,11 @@ for (const record of expired) {
 
 **Solution:** Path is ALWAYS generated server-side.
 
-### 6. Client-Side Validation (Future)
+### 6. Client-Side Validation (Planned)
 
-**Problem:** Users can upload any file renamed to `.stl`.
+**Problem:** Users can upload any file renamed to valid extension.
 
-**Solution:** Parse with three.js STLLoader before allowing upload.
+**Solution:** Parse with appropriate library before allowing upload.
 
 ### 7. Admin Validation for Base Files
 
@@ -223,8 +217,8 @@ for (const record of expired) {
 | `fileSize` | Client | Untrusted | Display only. Get real size from validation. |
 | `fileName` | Client | Untrusted | Display only. Sanitize before showing. |
 | `name` | Client | Untrusted | User-provided display name. |
-| `triangleCount` | Validation | Trusted | From STLLoader parse (future). |
-| `boundingBox` | Validation | Trusted | From STLLoader parse (future). |
+| `triangleCount` | Validation | Trusted | From STLLoader parse (planned). |
+| `boundingBox` | Validation | Trusted | From STLLoader parse (planned). |
 
 ---
 
@@ -253,7 +247,6 @@ for (const record of expired) {
 | Client-side STL validation | Not started |
 | Client-side SVG validation | Not started |
 | Thumbnail generation | Not started |
-| SVG file upload | Not started |
 | User file upload (non-admin) | Not started |
 | Quota enforcement | Not started |
 
@@ -261,7 +254,8 @@ for (const record of expired) {
 
 ## Related Docs
 
-- `/domains/vectorprojector/stl-upload.md` - Full STL validation flow
+- `/domains/vectorprojector/stl-upload.md` - STL validation and upload flow
+- `/domains/vectorprojector/discovery-mode.md` - Base samples and anonymous access
 - `/core/03-convex/rate-limiting.md` - Rate limiting patterns
 - `/core/05-storage/better-auth-upload-workaround.md` - Full workaround details
 - `/core/05-storage/convex-fs.md` - General convex-fs overview

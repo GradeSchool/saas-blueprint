@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-23
-updated_by: 3d-saas-sandbox
-change: "Corrected workflow based on actual prototype code"
+last_updated: 2026-02-01
+updated_by: vector-projector
+change: "Removed duplicate file size limits - reference upload docs instead"
 ---
 
 # Vector Projector
@@ -16,19 +16,19 @@ Makers who want to add custom artwork, logos, or text to existing 3D models with
 
 ## Core Flow
 
-1. **Import STL** � Load an existing 3D model
-2. **Lay on Face** � Orient the model on the print bed (like slicer's "Place on Face")
-3. **Select Face** � Pick a top-facing horizontal surface for projection
-4. **Position SVG** � Import vector artwork, position/scale/rotate it on the selected face
-5. **Extrude** � Extrude SVG shapes upward from the face, with boolean operations
-6. **Export** � Download 3MF with base model + colored extruded shapes
+1. **Import STL** — Load an existing 3D model
+2. **Lay on Face** — Orient the model on the print bed (like slicer's "Place on Face")
+3. **Select Face** — Pick a top-facing horizontal surface for projection
+4. **Position SVG** — Import vector artwork, position/scale/rotate it on the selected face
+5. **Extrude** — Extrude SVG shapes upward from the face, with boolean operations
+6. **Export** — Download 3MF with base model + colored extruded shapes
 
 ## Key Constraints
 
 - Desktop only (1024x768 minimum)
 - Single-user projects, no collaboration
 - Explicit save, no auto-save
-- File limits enforced (5 MB STL, 20 KB SVG)
+- File limits enforced (see [stl-upload.md](/domains/vectorprojector/stl-upload.md) and [svg-upload.md](/domains/vectorprojector/svg-upload.md))
 
 ## Why Horizontal Faces Only
 
@@ -37,7 +37,7 @@ Designed for flat printing (like HueForge). SVG artwork faces upward on the prin
 ## What Makes It Different
 
 - Focused workflow: STL in, decorated STL out
-- No CAD complexity � just position and extrude
+- No CAD complexity — just position and extrude
 - Automatic boolean operations between SVG shapes
 - Outputs manifold geometry ready for slicing
 - 3MF export preserves colors per shape
@@ -61,6 +61,7 @@ Prototype complete in 3d-saas-sandbox. Full workflow implemented. Needs: auth, s
 
 ## Related
 
-- [../3d/](../3d/) - Three.js and mesh patterns
-- [../2d/](../2d/) - SVG handling patterns
-- [/core/05-storage/](/core/05-storage/) - File limits and storage
+- [/domains/vectorprojector/stl-upload.md](/domains/vectorprojector/stl-upload.md) - STL validation and upload
+- [/domains/vectorprojector/svg-upload.md](/domains/vectorprojector/svg-upload.md) - SVG validation and upload
+- [/domains/vectorprojector/file-storage.md](/domains/vectorprojector/file-storage.md) - Storage infrastructure
+- [/core/05-storage/](/core/05-storage/) - Core storage patterns

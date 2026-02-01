@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-31
+last_updated: 2026-02-01
 updated_by: vector-projector
-change: "Added GitHub repo link, clarified upload/commit architecture"
+change: "Added warning about 15-second GC log noise and cost concerns"
 status: tested
 ---
 
@@ -12,6 +12,27 @@ Reference to all convex-fs documentation pages with summaries.
 **Root:** https://convexfs.dev/
 
 **GitHub:** https://github.com/jamwt/convex-fs
+
+---
+
+## Warning: Log Noise & Cost Concerns
+
+convex-fs runs a File GC job **every 15 seconds** that checks for expired files. This causes excessive noise in the Convex logs:
+
+- `background:findExpiredFiles`
+- `background:gcExpiredFiles`
+
+**The problem:** If you're not using the file expiration feature (`expiresAt` attribute), these jobs run constantly but do nothing useful. They still consume compute and database reads.
+
+**To filter out the noise:**
+1. In Convex Dashboard, go to Logs
+2. Click on **Functions** filter
+3. Search for `background`
+4. Deselect `background:findExpiredFiles` and `background:gcExpiredFiles`
+
+**Cost impact:** Unknown. These jobs run 5,760 times per day (every 15 seconds). Even if each run is cheap, it adds up. We're not using file expiration, so this is waste. **Monitor your Convex usage and keep an eye on this.**
+
+**Cannot be disabled:** The File GC does not respect the `freezeGc` config flag. There's no way to turn it off or slow it down.
 
 ---
 
