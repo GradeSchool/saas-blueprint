@@ -1,9 +1,9 @@
 ---
 last_updated: 2026-02-10
 updated_by: vector-projector
-change: "Fixed BUNNY_CDN_HOSTNAME format - hostname only, no protocol"
+change: "Added CORS Edge Rule setup (required for fetch/programmatic file access)"
 status: tested
-tldr: "Step-by-step bunny.net setup: storage zone, CDN, security tokens."
+tldr: "Step-by-step bunny.net setup: storage zone, CDN, security tokens, CORS."
 topics: [storage, bunny, cdn, setup]
 ---
 
@@ -83,7 +83,42 @@ Prevents other sites from embedding your files.
 
 ---
 
-## 6. Enable Bunny Shield
+## 6. Add CORS Edge Rule
+
+**CRITICAL:** Without this, `fetch()` calls from the browser will fail with CORS errors. convex-fs serves files via 302 redirect to Bunny CDN. Browser `<img>` tags follow redirects without CORS checks, but programmatic `fetch()` (needed for loading STL/3D files, parsing JSON, etc.) requires the CDN to include `Access-Control-Allow-Origin` in the response.
+
+1. Go to **CDN** → select your pull zone
+2. Go to **Edge Rules** (left sidebar)
+3. Click **+ Add Edge Rule**
+4. Configure:
+
+| Field | Value |
+|-------|-------|
+| Description | `Add CORS header` |
+
+5. Under **Actions**, click **+ Add Action**
+6. In the action dropdown, select **Set Response Header** (NOT "Add Request Header" — look carefully, there are many options)
+7. Set:
+
+| Field | Value |
+|-------|-------|
+| Header Name | `Access-Control-Allow-Origin` |
+| Header Value | `*` |
+
+8. Under **Conditions**, the UI requires at least one condition (you cannot leave it empty):
+   - Leave the dropdown as **Request URL**
+   - Leave **Match any**
+   - In the URL pattern field, enter: `https://{app-name}-cdn.b-cdn.net/*` (e.g., `https://vector-projector-cdn.b-cdn.net/*`)
+
+9. Click **Save Edge Rule**
+
+The saved rule should show:
+- Action: `Set Response Header → Access-Control-Allow-Origin: *`
+- Condition: `IF ANY condition matches → ANY Request URL https://{app-name}-cdn.b-cdn.net/*`
+
+---
+
+## 7. Enable Bunny Shield
 
 Provides WAF, rate limiting, and DDoS protection.
 
@@ -94,7 +129,7 @@ Provides WAF, rate limiting, and DDoS protection.
 
 ---
 
-## 7. Create Rate Limit Rule
+## 8. Create Rate Limit Rule
 
 Protects against download abuse.
 
@@ -144,7 +179,7 @@ Exceeding the limit blocks the IP for 1 minute.
 
 ---
 
-## 8. Gather Environment Variables
+## 9. Gather Environment Variables
 
 Collect these values for Convex dashboard:
 
@@ -176,7 +211,7 @@ Collect these values for Convex dashboard:
 
 ---
 
-## 9. Add to Convex Dashboard
+## 10. Add to Convex Dashboard
 
 1. Go to Convex Dashboard → your project
 2. Go to **Settings** → **Environment Variables**
@@ -194,7 +229,7 @@ BUNNY_REGION=ny
 
 ---
 
-## 10. Configure convex/fs.ts
+## 11. Configure convex/fs.ts
 
 All required env vars use `requireEnv()` to fail fast if missing:
 
@@ -245,6 +280,7 @@ Completed setup for vector-projector:
 | Bunny Shield | Basic (Free) |
 | Rate Limit | 100 req/10s per IP on `/fs` |
 | Hotlink Protection | vectorprojector.weheart.art, localhost |
+| CORS Edge Rule | `Access-Control-Allow-Origin: *` on all URLs |
 
 ---
 
@@ -256,6 +292,7 @@ Completed setup for vector-projector:
 - [ ] Enable Force SSL
 - [ ] **Enable Token Authentication**
 - [ ] Configure allowed referrers (hotlink protection)
+- [ ] **Add CORS Edge Rule** (`Access-Control-Allow-Origin: *`)
 - [ ] Enable Bunny Shield (Basic/Free)
 - [ ] Create rate limit rule for `/fs`
 - [ ] Gather all env vars
