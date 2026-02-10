@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-28
+last_updated: 2026-02-10
 updated_by: vector-projector
-change: "Added env var validation section, updated rate limiting status, clarified bot protection for auth routes"
+change: "Added Stripe env vars to required list"
 status: partial
 tldr: "Pre-production checklist: env validation, rate limiting, bot protection status."
 topics: [production, checklist, security, reference]
@@ -48,6 +48,8 @@ const googleClientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `BETTER_AUTH_SECRET` | Session encryption |
 | `RESEND_API_KEY` | Email sending |
+| `STRIPE_SECRET_KEY` | Stripe API access |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signature verification |
 
 ---
 
@@ -341,7 +343,7 @@ backerVerify: { kind: "fixed window", rate: 5, period: MINUTE },
 sessionCreate: { kind: "fixed window", rate: 10, period: MINUTE },
 ```
 
-See [../03-convex/rate-limiting.md](../03-convex/rate-limiting.md) for full details.
+See `core/03-convex/rate-limiting.md` for full details.
 
 ---
 

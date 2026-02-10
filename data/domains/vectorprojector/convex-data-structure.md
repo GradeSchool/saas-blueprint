@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-02-01
+last_updated: 2026-02-10
 updated_by: vector-projector
-change: "Moved discovery mode content to discovery-mode.md"
+change: "Added pricing_catalog table, backer access fields on users, fixed pending_uploads index"
 status: tested
 tldr: "Vector Projector Convex tables: projects, files, users schema."
 topics: [vector-projector, convex, schema, database]
@@ -24,6 +24,7 @@ Tables and fields for Vector Projector.
 | `alerts` | Admin broadcast messages |
 | `app_state` | App-wide config (singleton) |
 | `crowdfunding_backers` | Backer verification for early access |
+| `pricing_catalog` | Stripe products/prices snapshot |
 
 ### Vector Projector Tables
 
@@ -65,6 +66,8 @@ App-specific user data. Links to Better Auth via `authUserId`.
 | activeSessionId | Session enforcement |
 | sessionStartedAt | Session enforcement |
 | crowdfundingBackerId | Link to backer record |
+| backerAccessGrantedAt | When backer access was granted |
+| backerAccessUntil | When backer access expires |
 | lastSeenAlertAt | Alert read tracking |
 
 ### alerts
@@ -86,6 +89,21 @@ Singleton for app-wide configuration.
 | key | Always "config" |
 | crowdfundingActive | Feature flag |
 
+### pricing_catalog
+
+Stripe products/prices snapshot. Singleton pattern.
+
+| Column | Purpose |
+|--------|--------|
+| key | Always "catalog" |
+| products | Array of Stripe products |
+| prices | Array of Stripe prices |
+| lastSyncedAt | Timestamp of last sync |
+| lastSyncError | Error message if sync failed |
+| lastSyncFailedAt | Timestamp of last failed sync |
+
+**See:** `/core/06-payments/convex-stripe-component-overview.md`
+
 ---
 
 ## pending_uploads (Security)
@@ -103,6 +121,7 @@ Tracks blob ownership between upload and commit. Prevents blobId theft.
 
 **Indexes:**
 - `by_blobId` - lookup when validating commit
+- `by_authUserId` - check for pending uploads per user
 - `by_expiresAt` - cleanup expired records
 
 **Lifecycle:**
@@ -122,6 +141,7 @@ pending_uploads: defineTable({
   expiresAt: v.number(),
 })
   .index("by_blobId", ["blobId"])
+  .index("by_authUserId", ["authUserId"])
   .index("by_expiresAt", ["expiresAt"]),
 ```
 
@@ -303,14 +323,7 @@ The SVG boolean process is deterministic: same inputs always produce same output
 | stl_files | Done (with mutations) |
 | svg_files | Done (with mutations) |
 | projects | Schema done, mutations not started |
-
----
-
-## Next Steps
-
-1. Implement user file upload (non-admin)
-2. Add quota enforcement
-3. Start on projects mutations
+| pricing_catalog | Done |
 
 ---
 
@@ -319,3 +332,4 @@ The SVG boolean process is deterministic: same inputs always produce same output
 - `/domains/vectorprojector/discovery-mode.md` - Base samples and anonymous access
 - `/domains/vectorprojector/stl-upload.md` - STL validation and upload
 - `/domains/vectorprojector/file-storage.md` - Storage infrastructure
+- `/core/06-payments/convex-stripe-component-overview.md` - Stripe integration

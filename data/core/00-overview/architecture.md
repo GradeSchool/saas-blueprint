@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-23
-updated_by: saas-blueprint
-change: "Initial architecture decisions"
+last_updated: 2026-02-10
+updated_by: vector-projector
+change: "Updated file storage to reflect convex-fs + bunny.net CDN"
 tldr: "Core architectural decisions for desktop-first graphics/3D SaaS apps optimized for solo devs."
 topics: [architecture, overview, decisions]
 ---
@@ -20,14 +20,14 @@ Core architectural decisions for graphics/3D SaaS apps. These choices optimize f
 ## Key Decisions
 
 | Decision | Choice | Rationale |
-|----------|--------|-----------|
+|----------|--------|----------|
 | Mobile | No (1024x768 min) | Precision work needs desktop |
 | Collaboration | No | Removes CRDT/sync complexity |
 | State | React state, explicit save | Simple, users learn to save |
 | Auto-save | No | Interrupts flow |
 | Undo | No | Adjust settings back manually |
 | Backend | Convex Pro | Good DX, includes storage |
-| File storage | Convex (not CDN) | One service, simpler |
+| File storage | convex-fs + bunny.net | CDN for large files (STL, images) |
 | Payments | Stripe direct | Lower fees, no MOR risk |
 | Auth | better-auth | Open source, self-hosted |
 

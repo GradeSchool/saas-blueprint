@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { ChevronRight, Home } from "lucide-react"
+import { ChevronRight, Home, Copy, Check } from "lucide-react"
 
 const API_BASE = "http://localhost:3001"
 
@@ -60,6 +60,16 @@ function App() {
     vercel: '',
     url: ''
   })
+  const [copied, setCopied] = useState(false)
+
+  const copyFileUrl = useCallback(() => {
+    if (selectedFile) {
+      const url = `curl http://localhost:3001/api/files/${selectedFile}`
+      navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }, [selectedFile])
 
   // Sync URL hash with state
   const navigate = useCallback((page: Page, file: string | null = null) => {
@@ -246,18 +256,39 @@ function App() {
             <Home className="h-4 w-4" />
           </button>
           {breadcrumbs.length > 0 && (
-            <nav className="flex items-center gap-1 text-sm">
-              {breadcrumbs.map((crumb, i) => (
-                <div key={i} className="flex items-center gap-1">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  {crumb.path ? (
-                    <span className="text-muted-foreground">{crumb.label}</span>
+            <>
+              <nav className="flex items-center gap-1 text-sm">
+                {breadcrumbs.map((crumb, i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    {crumb.path ? (
+                      <span className="text-muted-foreground">{crumb.label}</span>
+                    ) : (
+                      <span className="font-medium">{crumb.label}</span>
+                    )}
+                  </div>
+                ))}
+              </nav>
+              {currentPage === 'file' && selectedFile && (
+                <button
+                  onClick={copyFileUrl}
+                  className="ml-auto flex items-center gap-1.5 px-2 py-1 text-xs font-mono bg-muted hover:bg-accent rounded border transition-colors"
+                  title="Copy curl command for this file"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3 w-3 text-green-600" />
+                      <span className="text-green-600">Copied!</span>
+                    </>
                   ) : (
-                    <span className="font-medium">{crumb.label}</span>
+                    <>
+                      <Copy className="h-3 w-3" />
+                      <span className="text-muted-foreground">curl .../api/files/{selectedFile.split('/').pop()}</span>
+                    </>
                   )}
-                </div>
-              ))}
-            </nav>
+                </button>
+              )}
+            </>
           )}
           {breadcrumbs.length === 0 && currentPage === 'home' && (
             <span className="text-lg font-semibold">SaaS Blueprint</span>

@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-29
+last_updated: 2026-02-10
 updated_by: vector-projector
-change: "Split from monolithic doc - setup only, debug moved to better-auth-debug.md"
+change: "Added requireEnv pattern, password reset template selection"
 status: tested
 context_cost: 3KB
 type: setup
@@ -87,7 +87,21 @@ import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins";
 import authConfig from "./auth.config";
 
-const siteUrl = process.env.SITE_URL!;
+// Fail fast with clear errors if required env vars are missing
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Missing required environment variable: ${name}. ` +
+      `Set it in Convex Dashboard > Settings > Environment Variables.`
+    );
+  }
+  return value;
+}
+
+const siteUrl = requireEnv("SITE_URL");
+const googleClientId = requireEnv("GOOGLE_CLIENT_ID");
+const googleClientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
@@ -101,8 +115,8 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     },
     socialProviders: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
       },
     },
     plugins: [
@@ -110,12 +124,14 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       convex({ authConfig }),
       emailOTP({
         otpLength: 6,
-        expiresIn: 600,
-        async sendVerificationOTP({ email, otp }) {
+        expiresIn: 600, // 10 minutes
+        async sendVerificationOTP({ email, otp, type }) {
           const actionCtx = requireActionCtx(ctx);
+          // Use different template for password reset
+          const template = type === "forget-password" ? "password-reset" : "verification";
           await actionCtx.runAction(internal.emails.sendTemplateEmail, {
             to: email,
-            template: "verification",
+            template,
             variables: { code: otp },
           });
         },
@@ -143,7 +159,17 @@ import { httpRouter } from "convex/server";
 import { authComponent, createAuth } from "./auth";
 
 const http = httpRouter();
-authComponent.registerRoutes(http, createAuth, { cors: true });
+
+// CORS restricted to known origins
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://your-app.example.com",  // production URL
+];
+
+authComponent.registerRoutes(http, createAuth, {
+  cors: { allowedOrigins },
+});
+
 export default http;
 ```
 

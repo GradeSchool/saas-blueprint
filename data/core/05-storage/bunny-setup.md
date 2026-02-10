@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-31
+last_updated: 2026-02-10
 updated_by: vector-projector
-change: "Clarified all env vars except BUNNY_REGION are required"
+change: "Fixed BUNNY_CDN_HOSTNAME format - hostname only, no protocol"
 status: tested
 tldr: "Step-by-step bunny.net setup: storage zone, CDN, security tokens."
 topics: [storage, bunny, cdn, setup]
@@ -152,11 +152,13 @@ Collect these values for Convex dashboard:
 |----------|----------|---------------|
 | `BUNNY_API_KEY` | **Yes** | Storage zone → FTP & API Access → Password (not read-only) |
 | `BUNNY_STORAGE_ZONE` | **Yes** | Storage zone name (e.g., `vector-projector`) |
-| `BUNNY_CDN_HOSTNAME` | **Yes** | Pull zone → Hostnames (e.g., `https://vector-projector-cdn.b-cdn.net`) |
+| `BUNNY_CDN_HOSTNAME` | **Yes** | Pull zone → Hostnames, **hostname only** (e.g., `vector-projector-cdn.b-cdn.net`) |
 | `BUNNY_TOKEN_KEY` | **Yes** | Pull zone → Security → Token Authentication |
 | `BUNNY_REGION` | No | Only if NOT using Frankfurt (see codes below) |
 
 **Important:** All variables except `BUNNY_REGION` are required. Deployment will fail with a clear error if any are missing. This prevents accidentally running with insecure configuration.
+
+**BUNNY_CDN_HOSTNAME format:** Use hostname only, **without** `https://` prefix or trailing slash. convex-fs adds the protocol automatically.
 
 ### Region Codes
 
@@ -183,10 +185,12 @@ Collect these values for Convex dashboard:
 ```
 BUNNY_API_KEY=(from FTP & API access)
 BUNNY_STORAGE_ZONE=vector-projector
-BUNNY_CDN_HOSTNAME=https://vector-projector-cdn.b-cdn.net
+BUNNY_CDN_HOSTNAME=vector-projector-cdn.b-cdn.net
 BUNNY_TOKEN_KEY=(from token auth screen)
 BUNNY_REGION=ny
 ```
+
+**Note:** `BUNNY_CDN_HOSTNAME` should be hostname only, no `https://` prefix.
 
 ---
 
@@ -255,5 +259,5 @@ Completed setup for vector-projector:
 - [ ] Enable Bunny Shield (Basic/Free)
 - [ ] Create rate limit rule for `/fs`
 - [ ] Gather all env vars
-- [ ] Add env vars to Convex dashboard
+- [ ] Add env vars to Convex dashboard (hostname only for CDN, no protocol)
 - [ ] Verify deployment succeeds (all required vars present)

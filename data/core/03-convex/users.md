@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-01-27
+last_updated: 2026-02-10
 updated_by: vector-projector
-change: "Updated to reflect actual implementation - all features complete"
+change: "Added crowdfunding backer fields, access tracking, alerts field, rate limiting"
 status: tested
 tldr: "App user table pattern that links to Better Auth. Separate concerns cleanly."
 topics: [convex, users, auth, database, patterns]
@@ -23,6 +23,10 @@ Pattern for managing app-specific user data alongside Better Auth.
 │ name                    │     │ name                    │
 │ emailVerified           │     │ activeSessionId         │
 │                         │     │ sessionStartedAt        │
+│                         │     │ crowdfundingBackerId    │
+│                         │     │ backerAccessGrantedAt   │
+│                         │     │ backerAccessUntil       │
+│                         │     │ lastSeenAlertAt         │
 └─────────────────────────┘     └─────────────────────────┘
 
                                 ┌─────────────────────────┐
@@ -44,8 +48,16 @@ users: defineTable({
   email: v.string(),
   name: v.optional(v.string()),
   createdAt: v.number(),
+  // Session enforcement
   activeSessionId: v.optional(v.string()),
   sessionStartedAt: v.optional(v.number()),
+  // Crowdfunding backer link
+  crowdfundingBackerId: v.optional(v.id("crowdfunding_backers")),
+  // Backer access period (authoritative for access checks)
+  backerAccessGrantedAt: v.optional(v.number()),
+  backerAccessUntil: v.optional(v.number()),
+  // Alert tracking
+  lastSeenAlertAt: v.optional(v.number()),
 })
   .index("by_authUserId", ["authUserId"])
   .index("by_email", ["email"]),
@@ -59,15 +71,26 @@ admins: defineTable({
 
 ## ensureAppUser Mutation
 
-Called on every sign-in. Creates app user if needed, generates session.
+Called on every sign-in. Creates app user if needed, generates session. Rate limited.
 
 ```typescript
 // convex/users.ts
 export const ensureAppUser = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    crowdfundingBackerId: v.optional(v.id("crowdfunding_backers")),
+    crowdfundingBackerToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx)
     if (!authUser) throw new Error('Not authenticated')
+    
+    // Rate limit by auth user ID
+    const { ok, retryAfter } = await rateLimiter.limit(ctx, "sessionCreate", {
+      key: authUser._id,
+    })
+    if (!ok) {
+      throw new Error(`Too many sign-in attempts. Try again in ${Math.ceil(retryAfter! / 1000)} seconds.`)
+    }
     
     const existingUser = await ctx.db.query('users')
       .withIndex('by_authUserId', q => q.eq('authUserId', authUser._id))
@@ -84,6 +107,9 @@ export const ensureAppUser = mutation({
       })
       appUser = existingUser
     } else {
+      // During crowdfunding, validate backer ID and token
+      // (See crowdfunding-mode.md for full validation logic)
+      
       const userId = await ctx.db.insert('users', {
         authUserId: authUser._id,
         email: authUser.email,
@@ -91,7 +117,19 @@ export const ensureAppUser = mutation({
         createdAt: now,
         activeSessionId: sessionId,
         sessionStartedAt: now,
+        crowdfundingBackerId: args.crowdfundingBackerId,
       })
+      
+      // Mark backer as used if provided
+      if (args.crowdfundingBackerId) {
+        await ctx.db.patch(args.crowdfundingBackerId, {
+          usedByUserId: userId,
+          usedAt: now,
+          pendingClaimToken: undefined,
+          pendingClaimExpiresAt: undefined,
+        })
+      }
+      
       appUser = await ctx.db.get(userId)
     }
     
@@ -158,4 +196,6 @@ export const ensureAppUser = mutation({
 
 - [schema.md](schema.md) - Full schema
 - [../04-auth/better-auth.md](../04-auth/better-auth.md) - Auth setup
+- [../04-auth/crowdfunding-mode.md](../04-auth/crowdfunding-mode.md) - Backer verification flow
 - [../02-frontend/admin-panel.md](../02-frontend/admin-panel.md) - Admin UI
+- [../02-frontend/alerts.md](../02-frontend/alerts.md) - Alert system
