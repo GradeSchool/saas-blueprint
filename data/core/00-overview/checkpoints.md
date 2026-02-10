@@ -5,6 +5,8 @@ change: "Initial creation - validation checkpoints for app setup"
 status: tested
 context_cost: 1KB
 type: reference
+tldr: "Validation checkpoints after each major setup phase to verify progress."
+topics: [checkpoints, validation, setup, testing]
 ---
 
 # Setup Checkpoints

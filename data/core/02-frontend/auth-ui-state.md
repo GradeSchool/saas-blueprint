@@ -3,6 +3,8 @@ last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Added note about avatar/skeleton for future"
 status: tested
+tldr: "Prevent flash of wrong auth state during sign-in, sign-out, and refresh."
+topics: [auth, frontend, ui, state, loading]
 ---
 
 # Auth UI State Management

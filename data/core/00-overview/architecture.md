@@ -2,6 +2,8 @@
 last_updated: 2026-01-23
 updated_by: saas-blueprint
 change: "Initial architecture decisions"
+tldr: "Core architectural decisions for desktop-first graphics/3D SaaS apps optimized for solo devs."
+topics: [architecture, overview, decisions]
 ---
 
 # Architecture

@@ -2,6 +2,8 @@
 last_updated: 2026-01-23
 updated_by: saas-blueprint
 change: "Initial analytics setup"
+tldr: "Usage tracking with PostHog. Open source, generous free tier."
+topics: [analytics, posthog, tracking, monitoring]
 ---
 
 # PostHog

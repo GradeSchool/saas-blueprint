@@ -3,6 +3,8 @@ last_updated: 2026-02-01
 updated_by: vector-projector
 change: "Added max file size (2 MB) at top, updated error states"
 status: planned
+tldr: "STL file upload flow: validation, size limits (2 MB), error states."
+topics: [vector-projector, stl, upload, validation]
 ---
 
 # STL Upload

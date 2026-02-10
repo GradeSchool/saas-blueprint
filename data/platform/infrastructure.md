@@ -1,17 +1,19 @@
 ---
-last_updated: 2026-01-24
+last_updated: 2026-02-09
 updated_by: vector-projector
-change: "Updated Vercel to Pro tier, clarified Resend free strategy"
+change: "Updated Stripe to Organization model (one account per app)"
 status: planned
+tldr: "Platform-level infrastructure: domain, business entity, shared services."
+topics: [platform, infrastructure, domain, services]
 ---
 
-# Platform Stack
+# Platform Infrastructure
 
 ## Domain & Business Entity
 
 **Domain:** `weheart.art` — registered at Spaceship
 
-**Business:** WeHeartArt LLC (or similar), single bank account, single Stripe account
+**Business:** WeHeartArt LLC (or similar), single bank account
 
 **Apps live at subdomains:** `vectorprojector.weheart.art`, `tilerstyler.weheart.art`, etc.
 
@@ -25,12 +27,41 @@ These are shared across all apps. One login, one dashboard.
 |---------|---------|------|-------|
 | **Spaceship** | Domain registration | — | Manages weheart.art |
 | **Google** | OAuth + YouTube | Free | Account: `weheartdotart@gmail.com`. Separate Cloud Console project per app for branding. |
-| **Stripe** | Payments | — | Single account. Each app has 1-4 products. |
+| **Stripe Organization** | Payments | — | Organization: "We Heart Art". Each app gets its own Account underneath. See below. |
 | **Vercel** | Hosting + Bot Protection | **Pro ($20/mo)** | BotID for bot protection. Separate project per app. |
 | **Discord** | Community support | Free | One server, separate channel per app. |
 | **Makerworld** | Marketing | — | Single profile. Crowdfunding launches. |
 | **PostHog** | Analytics | Free | Investigate: separate projects per app. |
 | **Resend** | Transactional email | **Free (3k/mo)** | Single domain `weheart.art` for all apps. See email strategy below. |
+
+---
+
+## Stripe Organization Structure
+
+**Organization:** We Heart Art (the umbrella)
+
+**Accounts:** One per app
+- Vector Projector (account)
+- Future App 1 (account)
+- Future App 2 (account)
+
+**Why separate accounts per app:**
+- Checkout pages show app branding, not "We Heart Art"
+- Customers see "Vector Projector" on their credit card statement
+- Each app has isolated customers, payments, products
+- Clean separation for analytics and reporting
+
+**Each app account has:**
+- Its own API keys (test + live)
+- Its own webhook endpoints
+- Its own products and prices
+- Its own customer base
+
+**Products per app:** Two products, each with one price:
+- `[App Name] Personal` — $50 one-time
+- `[App Name] Commercial` — $100 one-time
+
+See [create-stripe-products.md](../core/06-payments/create-stripe-products.md) for setup guide.
 
 ---
 
@@ -45,6 +76,7 @@ Each app gets its own instance of these.
 | **Convex** | Database | Separate project per app. |
 | **Vercel Project** | Deployment | One project per app under shared Vercel account. |
 | **Google Cloud Project** | OAuth branding | Separate project so consent screen shows app name/logo. |
+| **Stripe Account** | Payments | Separate account under We Heart Art organization. |
 
 ---
 

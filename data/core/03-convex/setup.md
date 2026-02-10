@@ -7,6 +7,8 @@ context_cost: 1.5KB
 type: setup
 requires: [core/01-setup/stack.md]
 unlocks: [core/04-auth/better-auth.md]
+tldr: "Basic Convex backend setup. Install, configure provider, first query. Do before auth."
+topics: [convex, backend, setup, database]
 ---
 
 # Convex Setup

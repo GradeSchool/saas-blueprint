@@ -6,6 +6,8 @@ status: tested
 context_cost: 4KB
 type: reference
 requires: [core/04-auth/better-auth.md]
+tldr: "Auth troubleshooting guide. Read when something breaks with Better Auth."
+topics: [auth, better-auth, debugging, troubleshooting, reference]
 ---
 
 # Better Auth - Debug Guide

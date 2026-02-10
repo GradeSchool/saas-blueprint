@@ -3,6 +3,8 @@ last_updated: 2026-01-28
 updated_by: vector-projector
 change: "Added env var validation section, updated rate limiting status, clarified bot protection for auth routes"
 status: partial
+tldr: "Pre-production checklist: env validation, rate limiting, bot protection status."
+topics: [production, checklist, security, reference]
 ---
 
 # Critical Notes

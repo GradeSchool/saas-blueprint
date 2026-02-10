@@ -3,6 +3,8 @@ last_updated: 2026-01-29
 updated_by: vector-projector
 change: "Consolidated into stack.md - this file is deprecated"
 status: deprecated
+tldr: "DEPRECATED: Content moved to stack.md"
+topics: [deprecated]
 ---
 
 # Config Files

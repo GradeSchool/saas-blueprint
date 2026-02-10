@@ -3,6 +3,8 @@ last_updated: 2026-01-31
 updated_by: vector-projector
 change: "Clarified all env vars except BUNNY_REGION are required"
 status: tested
+tldr: "Step-by-step bunny.net setup: storage zone, CDN, security tokens."
+topics: [storage, bunny, cdn, setup]
 ---
 
 # Bunny.net Setup Guide

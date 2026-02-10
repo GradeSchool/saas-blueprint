@@ -1,8 +1,10 @@
 ---
-last_updated: 2026-01-29
-updated_by: vector-projector
-change: "Initial creation - agent context efficiency guide"
+last_updated: 2026-02-09
+updated_by: saas-blueprint
+change: "Added platform context section for agent orientation"
 status: tested
+tldr: "Guide for AI agents to efficiently spin up a new app with minimal context reads."
+topics: [agent, quickstart, setup, context-efficiency]
 ---
 
 # Quick Start Manifest
@@ -11,10 +13,30 @@ This file tells AI agents exactly what to read to spin up a new app efficiently.
 
 ## How to Use This File
 
-1. Identify which app type you're building
-2. Fetch ONLY the listed files in order
-3. Stop at section boundaries noted (don't read debug/reference sections)
-4. Only fetch debug docs if something fails
+1. Read platform context first (quick skim)
+2. Identify which app type you're building
+3. Fetch ONLY the listed files in order
+4. Stop at section boundaries noted (don't read debug/reference sections)
+5. Only fetch debug docs if something fails
+
+---
+
+## Platform Context (~2 min skim)
+
+Before diving into code, understand the platform decisions that affect every app.
+
+| File | What to Note |
+|------|--------------|
+| [platform/overview.md](../../platform/overview.md) | What we build, philosophy, launch strategy |
+| [platform/infrastructure.md](../../platform/infrastructure.md) | Shared services, Stripe org model, costs |
+
+**Key facts to remember:**
+- Stripe = one account per app under "We Heart Art" organization
+- Google = one account (`weheartdotart@gmail.com`), separate Cloud Console project per app
+- Email = all apps send from `weheart.art` domain via Resend
+- Hosting = Vercel Pro, one project per app
+
+Don't memorize details. Just know these decisions exist so you don't make conflicting choices.
 
 ---
 
@@ -78,6 +100,7 @@ Don't read these upfront. Fetch only when you hit a specific problem.
 
 | Task | Expected Context |
 |------|------------------|
+| Platform context (skim) | ~2KB |
 | Standard app setup | 8-10KB |
 | Adding one feature | +2-3KB |
 | Debugging auth | +4KB |

@@ -3,6 +3,8 @@ last_updated: 2026-02-01
 updated_by: vector-projector
 change: "Added warning about 15-second GC log noise and cost concerns"
 status: tested
+tldr: "Reference to convex-fs docs. Warning: 15-second GC job causes log noise."
+topics: [storage, convex-fs, reference, docs]
 ---
 
 # Convex-FS Docs

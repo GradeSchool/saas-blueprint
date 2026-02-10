@@ -23,6 +23,7 @@ interface FileEntry {
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onFileSelect?: (filepath: string) => void
   onNavigate?: (page: 'config' | 'files') => void
+  selectedFile?: string | null
 }
 
 function DirTree({
@@ -34,6 +35,7 @@ function DirTree({
   getFilesInDir,
   getIcon,
   onFileSelect,
+  selectedFile,
 }: {
   dir: FileEntry
   depth: number
@@ -43,6 +45,7 @@ function DirTree({
   getFilesInDir: (path: string) => FileEntry[]
   getIcon: (file: FileEntry) => typeof FileText
   onFileSelect?: (filepath: string) => void
+  selectedFile?: string | null
 }) {
   const isExpanded = expandedDirs.has(dir.path)
   const childDirs = getChildDirs(dir.path)
@@ -71,17 +74,21 @@ function DirTree({
               getFilesInDir={getFilesInDir}
               getIcon={getIcon}
               onFileSelect={onFileSelect}
+              selectedFile={selectedFile}
             />
           ))}
           {dirFiles.map((file) => {
             const Icon = getIcon(file)
+            const isSelected = file.path === selectedFile
             return (
               <SidebarMenuItem key={file.path}>
                 <SidebarMenuButton
                   style={{ paddingLeft: `${paddingLeft + 24}px` }}
                   onClick={() => onFileSelect?.(file.path)}
+                  isActive={isSelected}
+                  className={isSelected ? "bg-accent font-medium" : ""}
                 >
-                  <Icon />
+                  <Icon className={isSelected ? "text-primary" : ""} />
                   <span>{file.name}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -93,7 +100,7 @@ function DirTree({
   )
 }
 
-export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarProps) {
+export function AppSidebar({ onFileSelect, onNavigate, selectedFile, ...props }: AppSidebarProps) {
   const [files, setFiles] = useState<FileEntry[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
 
@@ -103,6 +110,24 @@ export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarPro
       .then(data => setFiles(data.files || []))
       .catch(() => setFiles([]))
   }, [])
+
+  // Auto-expand to show selected file
+  useEffect(() => {
+    if (selectedFile) {
+      const parts = selectedFile.split('/')
+      const parentPaths: string[] = []
+      for (let i = 0; i < parts.length - 1; i++) {
+        parentPaths.push(parts.slice(0, i + 1).join('/'))
+      }
+      if (parentPaths.length > 0) {
+        setExpandedDirs(prev => {
+          const next = new Set(prev)
+          parentPaths.forEach(p => next.add(p))
+          return next
+        })
+      }
+    }
+  }, [selectedFile])
 
   const getIcon = (file: FileEntry) => {
     return file.name.endsWith('.json') ? FileJson : FileText
@@ -139,7 +164,12 @@ export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarPro
   return (
     <Sidebar {...props}>
       <SidebarHeader className="border-b px-4 py-3">
-        <span className="font-semibold">SaaS Blueprint</span>
+        <button
+          onClick={() => onNavigate?.('files')}
+          className="font-semibold hover:text-primary transition-colors text-left"
+        >
+          Weheart.art SaaS Blueprint
+        </button>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -161,10 +191,15 @@ export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarPro
             <SidebarMenu>
               {rootFiles.map((file) => {
                 const Icon = getIcon(file)
+                const isSelected = file.path === selectedFile
                 return (
                   <SidebarMenuItem key={file.path}>
-                    <SidebarMenuButton onClick={() => onFileSelect?.(file.path)}>
-                      <Icon />
+                    <SidebarMenuButton
+                      onClick={() => onFileSelect?.(file.path)}
+                      isActive={isSelected}
+                      className={isSelected ? "bg-accent font-medium" : ""}
+                    >
+                      <Icon className={isSelected ? "text-primary" : ""} />
                       <span>{file.name}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -182,6 +217,7 @@ export function AppSidebar({ onFileSelect, onNavigate, ...props }: AppSidebarPro
                   getFilesInDir={getFilesInDir}
                   getIcon={getIcon}
                   onFileSelect={onFileSelect}
+                  selectedFile={selectedFile}
                 />
               ))}
 

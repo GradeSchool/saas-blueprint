@@ -2,6 +2,8 @@
 last_updated: 2026-01-23
 updated_by: saas-blueprint
 change: "Initial explicit save pattern"
+tldr: "Explicit save button pattern with dirty state tracking. No auto-save."
+topics: [frontend, react, save, state, ui]
 ---
 
 # Save Pattern

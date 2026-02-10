@@ -3,6 +3,8 @@ last_updated: 2026-02-01
 updated_by: vector-projector
 change: "Moved discovery mode content to discovery-mode.md"
 status: tested
+tldr: "Vector Projector Convex tables: projects, files, users schema."
+topics: [vector-projector, convex, schema, database]
 ---
 
 # Convex Data Structure

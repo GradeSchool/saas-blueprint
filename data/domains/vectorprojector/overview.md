@@ -2,6 +2,8 @@
 last_updated: 2026-02-01
 updated_by: vector-projector
 change: "Removed duplicate file size limits - reference upload docs instead"
+tldr: "Vector Projector app: project SVG artwork onto 3D models for multicolor printing."
+topics: [vector-projector, 3d, stl, svg, app]
 ---
 
 # Vector Projector

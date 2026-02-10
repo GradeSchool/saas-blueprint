@@ -2,6 +2,8 @@
 last_updated: 2026-01-23
 updated_by: saas-blueprint
 change: "Initial state management approach"
+tldr: "React state only. No Zustand, no Redux. Keep it simple."
+topics: [frontend, react, state, simplicity]
 ---
 
 # State Management

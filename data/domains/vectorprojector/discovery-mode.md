@@ -3,6 +3,8 @@ last_updated: 2026-02-01
 updated_by: vector-projector
 change: "Removed duplicate file size limits - reference upload docs instead"
 status: tested
+tldr: "Anonymous exploration before signup. What users can do without auth."
+topics: [vector-projector, discovery, anonymous, ux]
 ---
 
 # Discovery Mode

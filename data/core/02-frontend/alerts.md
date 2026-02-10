@@ -3,6 +3,8 @@ last_updated: 2026-01-28
 updated_by: vector-projector
 change: "Initial documentation for admin alerts feature"
 status: tested
+tldr: "Admin-to-user broadcast messaging. Admins send announcements all users see."
+topics: [admin, alerts, frontend, messaging, ui]
 ---
 
 # Alerts

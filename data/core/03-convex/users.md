@@ -3,6 +3,8 @@ last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Updated to reflect actual implementation - all features complete"
 status: tested
+tldr: "App user table pattern that links to Better Auth. Separate concerns cleanly."
+topics: [convex, users, auth, database, patterns]
 ---
 
 # App User Tables

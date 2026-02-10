@@ -3,6 +3,8 @@ last_updated: 2026-01-28
 updated_by: vector-projector
 change: "Added claim token pattern, username normalization, server-side enforcement"
 status: tested
+tldr: "During crowdfunding, only verified MakerWorld backers can sign up."
+topics: [auth, crowdfunding, signup, backers]
 ---
 
 # Crowdfunding Mode

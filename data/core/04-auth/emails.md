@@ -3,11 +3,15 @@ last_updated: 2026-01-26
 updated_by: vector-projector
 change: "Added critical dual-file email pattern documentation with prominent warnings"
 status: tested
+tldr: "Transactional emails via Resend. One domain for all apps, dual-file pattern."
+topics: [email, resend, auth, verification]
 ---
 
 # Email System
 
 Transactional emails using Resend and React Email.
+
+> **Canonical source:** Platform email strategy is defined in [infrastructure.md](../../platform/infrastructure.md#email-strategy). This file covers implementation details.
 
 ## Strategy: One Domain for All Apps
 
@@ -358,5 +362,5 @@ All apps share the same domain (`weheart.art`), but the display name identifies 
 
 - [better-auth.md](better-auth.md) - Auth integration
 - [testing.md](testing.md) - Testing patterns
-- [../../platform/stack.md](../../platform/stack.md) - Platform email strategy
+- [../../platform/infrastructure.md](../../platform/infrastructure.md#email-strategy) - Platform email strategy (canonical)
 - [Resend docs](https://resend.com/docs)

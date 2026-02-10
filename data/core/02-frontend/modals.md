@@ -3,6 +3,8 @@ last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Added onboarding modal pattern"
 status: tested
+tldr: "Modal system with auth, onboarding, and generic patterns. URL-driven state."
+topics: [frontend, modals, ui, react, patterns]
 ---
 
 # Modals

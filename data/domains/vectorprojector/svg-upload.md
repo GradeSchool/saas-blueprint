@@ -3,6 +3,8 @@ last_updated: 2026-02-01
 updated_by: vector-projector
 change: "Initial creation"
 status: planned
+tldr: "SVG file upload flow: validation, parsing, error states."
+topics: [vector-projector, svg, upload, validation]
 ---
 
 # SVG Upload

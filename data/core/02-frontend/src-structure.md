@@ -3,6 +3,8 @@ last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Added /hooks folder, AdminPage, auth-client"
 status: tested
+tldr: "Standard /src directory layout: components, hooks, lib, pages, types."
+topics: [frontend, structure, organization, react]
 ---
 
 # Src Structure

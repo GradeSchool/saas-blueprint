@@ -7,6 +7,8 @@ context_cost: 3KB
 type: setup
 requires: [core/01-setup/stack.md, core/03-convex/setup.md]
 unlocks: [core/02-frontend/single-session.md, core/04-auth/google-oauth-setup.md]
+tldr: "Set up Better Auth with Convex for email/password and Google OAuth login."
+topics: [auth, better-auth, oauth, convex, setup]
 ---
 
 # Better Auth

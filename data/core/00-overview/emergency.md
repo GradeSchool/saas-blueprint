@@ -2,6 +2,8 @@
 last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Initial emergency procedures documentation"
+tldr: "When production breaks: quick health checks, rollback procedures, incident response."
+topics: [emergency, production, debugging, reference]
 ---
 
 # Emergency Procedures

@@ -3,6 +3,8 @@ last_updated: 2026-01-31
 updated_by: vector-projector
 change: "Added HTTP endpoint rate limiting pattern, updated fileUpload rate to 10/hour"
 status: tested
+tldr: "Rate limiting Convex endpoints with @convex-dev/rate-limiter to prevent abuse."
+topics: [convex, rate-limiting, security, backend]
 ---
 
 # Rate Limiting

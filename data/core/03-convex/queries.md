@@ -2,6 +2,8 @@
 last_updated: 2026-01-23
 updated_by: saas-blueprint
 change: "Initial query and mutation patterns"
+tldr: "Query and mutation patterns for Convex backend functions."
+topics: [convex, queries, mutations, backend, patterns]
 ---
 
 # Convex Queries & Mutations

@@ -2,6 +2,8 @@
 last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Initial migrations documentation"
+tldr: "Schema migration patterns for Convex. Move data first, then change schema."
+topics: [convex, migrations, schema, database]
 ---
 
 # Migrations

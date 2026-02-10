@@ -5,6 +5,8 @@ change: "Added quickstart manifest reference, context efficiency section"
 status: verified
 context_cost: 2KB
 type: setup
+tldr: "READ FIRST. How AI agents interact with the blueprint - pull model, not push."
+topics: [agent, workflow, rules, setup]
 ---
 
 # Agent Workflow

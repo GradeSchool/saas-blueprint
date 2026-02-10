@@ -25,6 +25,10 @@ app.get('/api/endpoints', (_req, res) => {
       { method: 'GET', path: '/api/health', description: 'Health check' },
       { method: 'GET', path: '/api/endpoints', description: 'List all endpoints' },
       { method: 'GET', path: '/api/index', description: 'Root index - start here' },
+      { method: 'GET', path: '/api/metadata', description: 'All file metadata in one call (no bodies)' },
+      { method: 'GET', path: '/api/search?q={term}', description: 'Full-text search with snippets' },
+      { method: 'GET', path: '/api/topics', description: 'List all unique topics' },
+      { method: 'GET', path: '/api/topics/{topic}', description: 'Files tagged with a topic' },
       { method: 'GET', path: '/api/files', description: 'List all data files' },
       { method: 'GET', path: '/api/files/{path}', description: 'Get a specific file or directory' },
       { method: 'POST', path: '/api/files/{path}', description: 'Create or update a file' },
@@ -50,15 +54,35 @@ const DATA_DIR = path.join(__dirname, '../data')
 const APPS_FILE = path.join(DATA_DIR, 'config/apps.json')
 
 // Helper: Parse YAML frontmatter from markdown
-function parseFrontmatter(content: string): { frontmatter: Record<string, string> | null, body: string } {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
+function parseFrontmatter(content: string): { frontmatter: Record<string, string | string[]> | null, body: string } {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
   if (!match) return { frontmatter: null, body: content }
 
-  const frontmatter: Record<string, string> = {}
-  match[1].split('\n').forEach(line => {
-    const [key, ...rest] = line.split(':')
-    if (key && rest.length) {
-      frontmatter[key.trim()] = rest.join(':').trim()
+  const frontmatter: Record<string, string | string[]> = {}
+  match[1].split(/\r?\n/).forEach(line => {
+    const colonIndex = line.indexOf(':')
+    if (colonIndex === -1) return
+
+    const key = line.slice(0, colonIndex).trim()
+    let value = line.slice(colonIndex + 1).trim()
+
+    if (!key) return
+
+    // Handle YAML arrays: [item1, item2, item3]
+    if (value.startsWith('[') && value.endsWith(']')) {
+      const arrayContent = value.slice(1, -1)
+      frontmatter[key] = arrayContent.split(',').map(item =>
+        item.trim().replace(/^["']|["']$/g, '')
+      ).filter(Boolean)
+    }
+    // Handle quoted strings
+    else if ((value.startsWith('"') && value.endsWith('"')) ||
+             (value.startsWith("'") && value.endsWith("'"))) {
+      frontmatter[key] = value.slice(1, -1)
+    }
+    // Plain value
+    else {
+      frontmatter[key] = value
     }
   })
   return { frontmatter, body: match[2] }
@@ -201,20 +225,184 @@ app.get('/api/changes', async (req, res) => {
       const content = await fs.readFile(path.join(DATA_DIR, file.path), 'utf-8')
       const { frontmatter } = parseFrontmatter(content)
 
-      if (frontmatter?.last_updated) {
+      if (frontmatter?.last_updated && typeof frontmatter.last_updated === 'string') {
         const fileDate = new Date(frontmatter.last_updated)
         if (fileDate > sinceDate) {
           changes.push({
             path: file.path,
             last_updated: frontmatter.last_updated,
-            updated_by: frontmatter.updated_by || 'unknown',
-            change: frontmatter.change || ''
+            updated_by: (frontmatter.updated_by as string) || 'unknown',
+            change: (frontmatter.change as string) || ''
           })
         }
       }
     }
 
     res.json({ changes })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/metadata - All frontmatter (no file bodies)
+app.get('/api/metadata', async (_req, res) => {
+  try {
+    const allFiles = await listFilesRecursive(DATA_DIR)
+    const mdFiles = allFiles.filter(f => f.type === 'file' && f.name.endsWith('.md'))
+
+    const files: {
+      path: string
+      tldr?: string
+      topics?: string[]
+      type?: string
+      context_cost?: string
+      last_updated?: string
+      updated_by?: string
+      status?: string
+      requires?: string[]
+      unlocks?: string[]
+    }[] = []
+
+    for (const file of mdFiles) {
+      const content = await fs.readFile(path.join(DATA_DIR, file.path), 'utf-8')
+      const { frontmatter } = parseFrontmatter(content)
+
+      const metadata: typeof files[0] = { path: file.path }
+
+      if (frontmatter) {
+        if (frontmatter.tldr) metadata.tldr = frontmatter.tldr as string
+        if (frontmatter.topics) metadata.topics = frontmatter.topics as string[]
+        if (frontmatter.type) metadata.type = frontmatter.type as string
+        if (frontmatter.context_cost) metadata.context_cost = frontmatter.context_cost as string
+        if (frontmatter.last_updated) metadata.last_updated = frontmatter.last_updated as string
+        if (frontmatter.updated_by) metadata.updated_by = frontmatter.updated_by as string
+        if (frontmatter.status) metadata.status = frontmatter.status as string
+        if (frontmatter.requires) metadata.requires = frontmatter.requires as string[]
+        if (frontmatter.unlocks) metadata.unlocks = frontmatter.unlocks as string[]
+      }
+
+      files.push(metadata)
+    }
+
+    res.json({ files, count: files.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/search - Full-text search with snippets
+app.get('/api/search', async (req, res) => {
+  try {
+    const q = (req.query.q as string || '').toLowerCase().trim()
+    if (!q) {
+      return res.status(400).json({ error: 'q parameter required' })
+    }
+
+    const allFiles = await listFilesRecursive(DATA_DIR)
+    const mdFiles = allFiles.filter(f => f.type === 'file' && f.name.endsWith('.md'))
+
+    const results: { path: string, snippet: string, score: number, tldr?: string }[] = []
+
+    for (const file of mdFiles) {
+      const content = await fs.readFile(path.join(DATA_DIR, file.path), 'utf-8')
+      const { frontmatter, body } = parseFrontmatter(content)
+      const lowerContent = content.toLowerCase()
+
+      let score = 0
+      let snippet = ''
+
+      // Score based on matches
+      const titleMatch = file.name.toLowerCase().includes(q)
+      const tldrMatch = frontmatter?.tldr && (frontmatter.tldr as string).toLowerCase().includes(q)
+      const topicsMatch = frontmatter?.topics && (frontmatter.topics as string[]).some(t => t.toLowerCase().includes(q))
+      const bodyMatch = body.toLowerCase().includes(q)
+
+      if (titleMatch) score += 10
+      if (tldrMatch) score += 8
+      if (topicsMatch) score += 5
+      if (bodyMatch) score += 3
+
+      if (score === 0) continue
+
+      // Extract snippet around first match in body
+      const matchIndex = lowerContent.indexOf(q)
+      if (matchIndex !== -1) {
+        const start = Math.max(0, matchIndex - 50)
+        const end = Math.min(content.length, matchIndex + q.length + 100)
+        snippet = (start > 0 ? '...' : '') +
+          content.slice(start, end).replace(/\s+/g, ' ').trim() +
+          (end < content.length ? '...' : '')
+      } else if (frontmatter?.tldr) {
+        snippet = frontmatter.tldr as string
+      }
+
+      results.push({
+        path: file.path,
+        snippet,
+        score,
+        ...(frontmatter?.tldr && { tldr: frontmatter.tldr as string })
+      })
+    }
+
+    // Sort by score descending
+    results.sort((a, b) => b.score - a.score)
+
+    res.json({ query: q, results, count: results.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/topics - List all unique topics
+app.get('/api/topics', async (_req, res) => {
+  try {
+    const allFiles = await listFilesRecursive(DATA_DIR)
+    const mdFiles = allFiles.filter(f => f.type === 'file' && f.name.endsWith('.md'))
+
+    const topicsSet = new Set<string>()
+
+    for (const file of mdFiles) {
+      const content = await fs.readFile(path.join(DATA_DIR, file.path), 'utf-8')
+      const { frontmatter } = parseFrontmatter(content)
+
+      if (frontmatter?.topics && Array.isArray(frontmatter.topics)) {
+        (frontmatter.topics as string[]).forEach(t => topicsSet.add(t.toLowerCase()))
+      }
+    }
+
+    const topics = Array.from(topicsSet).sort()
+    res.json({ topics, count: topics.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/topics/:topic - Files tagged with a topic
+app.get('/api/topics/:topic', async (req, res) => {
+  try {
+    const topic = req.params.topic.toLowerCase()
+    const allFiles = await listFilesRecursive(DATA_DIR)
+    const mdFiles = allFiles.filter(f => f.type === 'file' && f.name.endsWith('.md'))
+
+    const files: { path: string, tldr?: string, topics?: string[] }[] = []
+
+    for (const file of mdFiles) {
+      const content = await fs.readFile(path.join(DATA_DIR, file.path), 'utf-8')
+      const { frontmatter } = parseFrontmatter(content)
+
+      if (frontmatter?.topics && Array.isArray(frontmatter.topics)) {
+        const topics = frontmatter.topics as string[]
+        if (topics.some(t => t.toLowerCase() === topic)) {
+          files.push({
+            path: file.path,
+            ...(frontmatter.tldr && { tldr: frontmatter.tldr as string }),
+            topics
+          })
+        }
+      }
+    }
+
+    res.json({ topic, files, count: files.length })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

@@ -3,6 +3,8 @@ last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Simplified to brainstorming format"
 status: draft
+tldr: "User journey brainstorming: first visit to first action scenarios."
+topics: [vector-projector, ux, user-journeys, draft]
 ---
 
 # Initial User Journeys

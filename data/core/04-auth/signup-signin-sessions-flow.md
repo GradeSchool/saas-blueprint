@@ -3,6 +3,8 @@ last_updated: 2026-01-28
 updated_by: vector-projector
 change: "Added crowdfunding backer sign up flow"
 status: tested
+tldr: "Complete auth flows guide. Sign up, sign in, sessions, two-table architecture."
+topics: [auth, signup, signin, sessions, flow, reference]
 ---
 
 # Sign Up / Sign In / Sessions Flow

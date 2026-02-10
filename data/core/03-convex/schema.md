@@ -3,6 +3,8 @@ last_updated: 2026-01-28
 updated_by: vector-projector
 change: "Added crowdfunding_backers table"
 status: tested
+tldr: "Database schema patterns for Convex including users, sessions, and crowdfunding tables."
+topics: [convex, schema, database, backend]
 ---
 
 # Convex Schema

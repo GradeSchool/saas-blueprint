@@ -2,6 +2,8 @@
 last_updated: 2026-01-31
 updated_by: vector-projector
 change: "Added security headers section for vercel.json"
+tldr: "Deploy to Vercel with Convex backend. Security headers, env vars, domains."
+topics: [deployment, vercel, hosting, production, security]
 ---
 
 # Deployment

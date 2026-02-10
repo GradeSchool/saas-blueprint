@@ -3,11 +3,15 @@ last_updated: 2026-01-26
 updated_by: vector-projector
 change: "Added cross-reference to custom domain docs for OAuth branding"
 status: tested
+tldr: "Step-by-step Google OAuth setup for Convex apps. Critical: redirect URI is Convex URL, not frontend."
+topics: [auth, oauth, google, convex, setup]
 ---
 
 # Google OAuth Setup
 
 Step-by-step guide to configure Google OAuth for a SaaS app using Convex + Better Auth.
+
+> **Canonical source:** Auth strategy is defined in [infrastructure.md](../../platform/infrastructure.md#auth-strategy). This file covers the step-by-step Google OAuth setup.
 
 ## Overview
 

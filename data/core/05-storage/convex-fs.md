@@ -3,6 +3,8 @@ last_updated: 2026-01-31
 updated_by: vector-projector
 change: "Added Better Auth workaround reference, marked Vector Projector setup complete"
 status: tested
+tldr: "File storage with Convex-FS backed by bunny.net CDN. Alpha status."
+topics: [storage, convex, bunny, cdn, files]
 ---
 
 # Convex-FS Overview

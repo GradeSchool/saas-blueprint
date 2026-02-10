@@ -7,6 +7,8 @@ context_cost: 2KB
 type: setup
 requires: [core/04-auth/better-auth.md]
 unlocks: []
+tldr: "Prevent multiple simultaneous sessions per user. New login kills old session."
+topics: [auth, sessions, security, frontend]
 ---
 
 # Single Session Enforcement

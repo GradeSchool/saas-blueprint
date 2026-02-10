@@ -3,6 +3,8 @@ last_updated: 2026-01-28
 updated_by: vector-projector
 change: "Separated concerns: header is navigation, sidebar is app tools, scene toolbar is project controls"
 status: tested
+tldr: "HeroForge-style SPA layout. Header, sidebar, main scene. Step-based workflow."
+topics: [frontend, layout, ui, spa, design]
 ---
 
 # Layout

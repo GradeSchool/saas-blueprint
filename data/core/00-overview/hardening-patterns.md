@@ -6,6 +6,8 @@ status: tested
 context_cost: 6KB
 type: reference
 requires: []
+tldr: "Security audit lessons: CSP, rate limiting, input validation. Read when hardening."
+topics: [security, hardening, csp, rate-limiting, reference]
 ---
 
 # Hardening Patterns

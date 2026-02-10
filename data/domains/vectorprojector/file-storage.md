@@ -3,6 +3,8 @@ last_updated: 2026-02-01
 updated_by: vector-projector
 change: "Made more general, moved file-type specifics to dedicated docs"
 status: tested
+tldr: "File storage infrastructure using convex-fs with bunny.net CDN."
+topics: [vector-projector, storage, convex-fs, bunny]
 ---
 
 # File Storage

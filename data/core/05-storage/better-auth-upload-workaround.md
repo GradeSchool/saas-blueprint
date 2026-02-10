@@ -3,6 +3,8 @@ last_updated: 2026-01-31
 updated_by: vector-projector
 change: "Added opportunistic cleanup pattern instead of cron"
 status: tested
+tldr: "Workaround for convex-fs uploads with Better Auth cross-domain plugin."
+topics: [storage, convex-fs, better-auth, upload, workaround]
 ---
 
 # Better Auth Cross-Domain Upload Workaround

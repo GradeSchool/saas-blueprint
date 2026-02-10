@@ -2,6 +2,8 @@
 last_updated: 2026-01-23
 updated_by: saas-blueprint
 change: "Initial philosophy and principles"
+tldr: "Maximum simplicity for solo dev. Multi-app carpet bomb strategy over one complex app."
+topics: [philosophy, overview, strategy]
 ---
 
 # Philosophy

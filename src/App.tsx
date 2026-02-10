@@ -1,14 +1,33 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { ChevronRight, Home } from "lucide-react"
 
 const API_BASE = "http://localhost:3001"
 
 type Page = 'home' | 'config' | 'file'
+
+// Parse hash into route state
+function parseHash(hash: string): { page: Page; file: string | null } {
+  const cleaned = hash.replace(/^#\/?/, '')
+  if (!cleaned || cleaned === '') return { page: 'home', file: null }
+  if (cleaned === 'config') return { page: 'config', file: null }
+  if (cleaned.startsWith('file/')) {
+    return { page: 'file', file: cleaned.slice(5) }
+  }
+  return { page: 'home', file: null }
+}
+
+// Build hash from route state
+function buildHash(page: Page, file: string | null): string {
+  if (page === 'config') return '#/config'
+  if (page === 'file' && file) return `#/file/${file}`
+  return '#/'
+}
 
 interface AppInfo {
   name: string
@@ -25,8 +44,10 @@ interface AppWithChanges extends AppInfo {
 }
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('home')
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  // Initialize from hash
+  const initialRoute = parseHash(window.location.hash)
+  const [currentPage, setCurrentPage] = useState<Page>(initialRoute.page)
+  const [selectedFile, setSelectedFile] = useState<string | null>(initialRoute.file)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [apps, setApps] = useState<AppWithChanges[]>([])
   const [loading, setLoading] = useState(false)
@@ -39,6 +60,27 @@ function App() {
     vercel: '',
     url: ''
   })
+
+  // Sync URL hash with state
+  const navigate = useCallback((page: Page, file: string | null = null) => {
+    setCurrentPage(page)
+    setSelectedFile(file)
+    const newHash = buildHash(page, file)
+    if (window.location.hash !== newHash) {
+      window.location.hash = newHash
+    }
+  }, [])
+
+  // Listen for browser back/forward
+  useEffect(() => {
+    const handleHashChange = () => {
+      const route = parseHash(window.location.hash)
+      setCurrentPage(route.page)
+      setSelectedFile(route.file)
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   const loadApps = async () => {
     setLoading(true)
@@ -116,37 +158,45 @@ function App() {
     }
   }, [currentPage])
 
-  const handleFileSelect = async (filename: string) => {
-    setSelectedFile(filename)
-    setCurrentPage('file')
-    try {
-      const res = await fetch(`${API_BASE}/api/files/${filename}`)
-      if (filename.endsWith('.json')) {
-        const data = await res.json()
-        setFileContent(JSON.stringify(data, null, 2))
-      } else {
-        const text = await res.text()
-        setFileContent(text)
-      }
-    } catch {
-      setFileContent('Error loading file')
-    }
-  }
+  const handleFileSelect = useCallback((filename: string) => {
+    navigate('file', filename)
+  }, [navigate])
 
-  const handleNavigate = (page: 'config' | 'files') => {
+  // Load file content when selectedFile changes
+  useEffect(() => {
+    if (currentPage === 'file' && selectedFile) {
+      setFileContent(null) // Clear while loading
+      fetch(`${API_BASE}/api/files/${selectedFile}`)
+        .then(res => {
+          if (selectedFile.endsWith('.json')) {
+            return res.json().then(data => JSON.stringify(data, null, 2))
+          }
+          return res.text()
+        })
+        .then(setFileContent)
+        .catch(() => setFileContent('Error loading file'))
+    }
+  }, [currentPage, selectedFile])
+
+  const handleNavigate = useCallback((page: 'config' | 'files') => {
     if (page === 'config') {
-      setCurrentPage('config')
-      setSelectedFile(null)
+      navigate('config')
     } else {
-      setCurrentPage('home')
-      setSelectedFile(null)
+      navigate('home')
     }
-  }
+  }, [navigate])
 
-  const getTitle = () => {
-    if (currentPage === 'config') return 'Config'
-    if (currentPage === 'file' && selectedFile) return selectedFile
-    return 'SaaS Blueprint'
+  // Build breadcrumbs from path
+  const getBreadcrumbs = () => {
+    if (currentPage === 'config') return [{ label: 'Config', path: null }]
+    if (currentPage === 'file' && selectedFile) {
+      const parts = selectedFile.split('/')
+      return parts.map((part, i) => ({
+        label: part,
+        path: i < parts.length - 1 ? parts.slice(0, i + 1).join('/') : null
+      }))
+    }
+    return []
   }
 
   const AppLinks = ({ app }: { app: AppWithChanges }) => {
@@ -176,13 +226,42 @@ function App() {
     )
   }
 
+  const breadcrumbs = getBreadcrumbs()
+
   return (
     <SidebarProvider>
-      <AppSidebar onFileSelect={handleFileSelect} onNavigate={handleNavigate} />
+      <AppSidebar
+        onFileSelect={handleFileSelect}
+        onNavigate={handleNavigate}
+        selectedFile={selectedFile}
+      />
       <SidebarInset>
-        <header className="flex h-14 items-center gap-4 border-b px-4">
+        <header className="flex h-14 items-center gap-2 border-b px-4">
           <SidebarTrigger />
-          <h1 className="text-lg font-semibold">{getTitle()}</h1>
+          <button
+            onClick={() => navigate('home')}
+            className="p-1 hover:bg-accent rounded transition-colors"
+            title="Home"
+          >
+            <Home className="h-4 w-4" />
+          </button>
+          {breadcrumbs.length > 0 && (
+            <nav className="flex items-center gap-1 text-sm">
+              {breadcrumbs.map((crumb, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  {crumb.path ? (
+                    <span className="text-muted-foreground">{crumb.label}</span>
+                  ) : (
+                    <span className="font-medium">{crumb.label}</span>
+                  )}
+                </div>
+              ))}
+            </nav>
+          )}
+          {breadcrumbs.length === 0 && currentPage === 'home' && (
+            <span className="text-lg font-semibold">SaaS Blueprint</span>
+          )}
         </header>
         <main className="flex-1 p-6">
           {currentPage === 'config' && (
@@ -369,30 +448,100 @@ function App() {
               </div>
 
               <div className="rounded-lg border p-4 bg-muted/50">
-                <h3 className="font-semibold mb-3">🤖 AI Agent Quick Start</h3>
+                <h3 className="font-semibold mb-3">Agent API Reference</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Connect to this blueprint API to fetch patterns for your SaaS app. Click to copy curl command.
+                  Find answers fast without filling context. Click any endpoint to copy the curl command.
                 </p>
 
-                <div className="space-y-3 text-sm font-mono">
-                  {[
-                    { comment: "# Start here - get the index", path: "/api/index" },
-                    { comment: "# List all available files", path: "/api/files" },
-                    { comment: "# Get a specific file or directory", path: "/api/files/core/02-frontend/save-pattern.md" },
-                  ].map(({ comment, path }) => (
-                    <div key={path}>
-                      <div className="text-muted-foreground mb-1">{comment}</div>
-                      <code
-                        className="bg-background px-2 py-1 rounded border cursor-pointer hover:bg-accent transition-colors inline-block"
-                        onClick={() => {
-                          navigator.clipboard.writeText(`curl http://localhost:3001${path}`)
-                        }}
-                        title="Click to copy curl command"
-                      >
-                        GET {path}
-                      </code>
+                <div className="space-y-4 text-sm font-mono">
+                  {/* Discovery */}
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground mb-2 font-sans font-medium tracking-wide">Discovery</div>
+                    <div className="space-y-2">
+                      {[
+                        { path: "/api/index", desc: "Root index - start here" },
+                        { path: "/api/metadata", desc: "All file metadata in one call" },
+                        { path: "/api/endpoints", desc: "List all endpoints" },
+                      ].map(({ path, desc }) => (
+                        <div key={path} className="flex items-center gap-3">
+                          <code
+                            className="bg-background px-2 py-1 rounded border cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => navigator.clipboard.writeText(`curl http://localhost:3001${path}`)}
+                            title="Click to copy"
+                          >
+                            GET {path}
+                          </code>
+                          <span className="text-muted-foreground font-sans text-xs">{desc}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Search */}
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground mb-2 font-sans font-medium tracking-wide">Search</div>
+                    <div className="space-y-2">
+                      {[
+                        { path: "/api/search?q=auth", desc: "Full-text search with snippets" },
+                      ].map(({ path, desc }) => (
+                        <div key={path} className="flex items-center gap-3">
+                          <code
+                            className="bg-background px-2 py-1 rounded border cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => navigator.clipboard.writeText(`curl "http://localhost:3001${path}"`)}
+                            title="Click to copy"
+                          >
+                            GET {path}
+                          </code>
+                          <span className="text-muted-foreground font-sans text-xs">{desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Topics */}
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground mb-2 font-sans font-medium tracking-wide">Topics</div>
+                    <div className="space-y-2">
+                      {[
+                        { path: "/api/topics", desc: "List all unique topics" },
+                        { path: "/api/topics/auth", desc: "Files tagged with a topic" },
+                      ].map(({ path, desc }) => (
+                        <div key={path} className="flex items-center gap-3">
+                          <code
+                            className="bg-background px-2 py-1 rounded border cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => navigator.clipboard.writeText(`curl http://localhost:3001${path}`)}
+                            title="Click to copy"
+                          >
+                            GET {path}
+                          </code>
+                          <span className="text-muted-foreground font-sans text-xs">{desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Files */}
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground mb-2 font-sans font-medium tracking-wide">Files</div>
+                    <div className="space-y-2">
+                      {[
+                        { path: "/api/files", desc: "List all files" },
+                        { path: "/api/files/core/04-auth/setup.md", desc: "Get specific file content" },
+                        { path: "/api/changes?since=2026-01-01", desc: "Files updated since date" },
+                      ].map(({ path, desc }) => (
+                        <div key={path} className="flex items-center gap-3">
+                          <code
+                            className="bg-background px-2 py-1 rounded border cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => navigator.clipboard.writeText(`curl "http://localhost:3001${path}"`)}
+                            title="Click to copy"
+                          >
+                            GET {path}
+                          </code>
+                          <span className="text-muted-foreground font-sans text-xs">{desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-4 pt-4 border-t">

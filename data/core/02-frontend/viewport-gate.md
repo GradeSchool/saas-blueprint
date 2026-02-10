@@ -3,6 +3,8 @@ last_updated: 2026-01-23
 updated_by: vector-projector
 change: "Added status field and related links"
 status: tested
+tldr: "Enforce desktop-only viewport (1024x768 minimum). Shows friendly message on mobile."
+topics: [frontend, viewport, responsive, desktop-only]
 ---
 
 # Viewport Gate

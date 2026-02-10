@@ -1,7 +1,9 @@
 ---
-last_updated: 2026-01-29
-updated_by: vector-projector
-change: "Added quickstart manifest as primary agent entry point"
+last_updated: 2026-02-09
+updated_by: saas-blueprint
+change: "Fixed structure to show platform first, updated domains to reflect reality"
+tldr: "Root index for SaaS Blueprint. Start here to navigate the knowledge repository."
+topics: [index, navigation, overview]
 ---
 
 # SaaS Blueprint
@@ -21,12 +23,29 @@ A living knowledge repository for building SaaS apps. Apps are built by a solo d
 
 ---
 
-## API
+## Quick Discovery API
+
+Find answers fast without filling context or endless searching.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/metadata` | All file metadata in one call (no bodies) |
+| `GET /api/search?q=webhook` | Full-text search with snippets |
+| `GET /api/topics` | List all unique topics |
+| `GET /api/topics/auth` | Files tagged with a topic |
+
+---
+
+## Full API
 
 ### Read
 
 ```
 GET /api/index                    This file
+GET /api/metadata                 All frontmatter (no bodies)
+GET /api/search?q={term}          Full-text search with snippets
+GET /api/topics                   List all unique topics
+GET /api/topics/{topic}           Files tagged with a topic
 GET /api/files                    List all files
 GET /api/files/{path}             Get file content
 GET /api/changes?since=YYYY-MM-DD List updated files
@@ -72,6 +91,10 @@ unlocks: [file.md]
 ## Structure
 
 ```
+/platform             Read first - shared infrastructure
+  overview.md         What we build, philosophy
+  infrastructure.md   Shared services, Stripe org, costs
+
 /core                 Sequential setup (00-08)
   /00-overview        Agent workflow, quickstart, checkpoints, hardening
   /01-setup           Stack scaffolding
@@ -83,9 +106,8 @@ unlocks: [file.md]
   /07-analytics       PostHog
   /08-hosting         Deployment
 
-/domains              App-specific patterns
-  /3d                 Three.js, STL, meshes
-  /2d                 Canvas, SVG
+/domains              App-specific patterns (deltas from core)
+  /vectorprojector    Vector Projector app specifics
 ```
 
 ---

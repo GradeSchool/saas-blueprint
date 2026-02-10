@@ -2,6 +2,8 @@
 last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Initial dev vs prod workflow documentation"
+tldr: "Dev and prod are separate apps sharing code. Workflow for safe deployments."
+topics: [convex, deployment, dev, production, workflow]
 ---
 
 # Dev vs Production

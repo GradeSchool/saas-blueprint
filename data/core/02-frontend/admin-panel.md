@@ -3,6 +3,8 @@ last_updated: 2026-01-27
 updated_by: vector-projector
 change: "Updated with actual implementation"
 status: tested
+tldr: "Admin panel with email whitelist detection. Same auth, different page for admins."
+topics: [admin, frontend, auth, ui]
 ---
 
 # Admin Panel

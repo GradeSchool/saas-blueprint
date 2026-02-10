@@ -3,6 +3,8 @@ last_updated: 2026-01-26
 updated_by: vector-projector
 change: "Updated with actual test results and troubleshooting from real testing session"
 status: tested
+tldr: "Efficient auth testing patterns. One inbox, minimal cleanup, plus sign trick."
+topics: [auth, testing, debugging, workflow]
 ---
 
 # Testing Auth Flows

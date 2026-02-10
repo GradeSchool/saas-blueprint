@@ -7,6 +7,8 @@ context_cost: 3KB
 type: setup
 requires: []
 unlocks: [core/03-convex/setup.md]
+tldr: "Project scaffolding: Vite + React 19 + TypeScript + shadcn. Start here for new apps."
+topics: [setup, vite, react, typescript, shadcn, stack]
 ---
 
 # Stack

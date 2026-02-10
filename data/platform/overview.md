@@ -2,6 +2,8 @@
 last_updated: 2026-01-24
 updated_by: saas-blueprint
 change: "Initial platform overview and philosophy"
+tldr: "Platform of SaaS apps for makers. Parameter-driven 3D design tools and creative apps."
+topics: [platform, overview, philosophy, makers]
 ---
 
 # Platform Overview
